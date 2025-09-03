@@ -9,8 +9,111 @@ datasource db {
 }
 
 model User {
-  id    String @id @map("_id")
-  name  String
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  username         String   @unique
+  passwordHash     String
+
+  email            Email
+  phone            Phone?
+  roles            String[]
+  disabled         Boolean  @default(false)
+
+  globalName       String?
+  bio              String?  @default("")
+  avatar           String?
+  banner           String?
+  accentColor      Int?
+  hexAccentColor   String?
+  badges           Badge[]
+  premium          Premium?
+
+  presence         Presence?
+  devices          Device[]
+  privacy          Privacy?
+  settings         Settings?
+  mfa              TwoFactor?
+  securityLog      SecurityLog[]
+  connections      Connection[]
+
+  createdTimestamp Int?
+  deletedAt        DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+type Email {
+  address  String
+  verified Boolean @default(false)
+}
+
+type Phone {
+  e164     String
+  verified Boolean @default(false)
+}
+
+type TwoFactor {
+  enabled          Boolean @default(false)
+  type             String  @default("totp")
+  backupCodesHash  String[]
+}
+
+type Presence {
+  status       String   @default("offline")
+  customStatus Json?
+  activities   Json[]
+  lastActiveAt DateTime?
+}
+
+type Privacy {
+  allowDMFrom     String  @default("everyone")
+  friendRequest   String  @default("everyone")
+  showActivity    Boolean @default(true)
+  showOnlineStatus Boolean @default(true)
+}
+
+type Settings {
+  theme        String   @default("dark")
+  locale       String   @default("en-US")
+  timezone     String   @default("UTC")
+  notifications Json
+  voice        Json
+  compactMode  Boolean  @default(false)
+  fontScale    Float    @default(1.0)
+}
+
+type Badge {
+  code      String
+  grantedAt DateTime @default(now())
+}
+
+type Premium {
+  active    Boolean @default(false)
+  tier      Int     @default(0)
+  expiresAt DateTime?
+}
+
+type Device {
+  deviceId      String?
+  platform      String?
+  lastIp        String?
+  lastActiveAt  DateTime?
+  pushTokenRef  String?
+}
+
+type SecurityLog {
+  type      String
+  ip        String?
+  userAgent String?
+  at        DateTime @default(now())
+}
+
+type Connection {
+  provider        String
+  username        String?
+  externalId      String
+  linkedAt        DateTime @default(now())
+  visibleOnProfile Boolean @default(true)
 
   @@map("user")
 }
