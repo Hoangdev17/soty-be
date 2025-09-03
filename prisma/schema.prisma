@@ -9,112 +9,38 @@ datasource db {
 }
 
 model User {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  username         String   @unique
-  passwordHash     String
+  id               String   @id @map("_id")         // ID duy nhất của user. Dùng làm _id trong Mongo. 
 
-  email            Email
-  phone            Phone?
-  roles            String[]
-  disabled         Boolean  @default(false)
+  username         String   @unique                // Tên đăng nhập.
+  passwordHash     String                          // Mật khẩu đã băm (hash) bằng bcrypt.
 
-  globalName       String?
-  bio              String?  @default("")
-  avatar           String?
-  banner           String?
-  accentColor      Int?
-  hexAccentColor   String?
-  badges           Badge[]
-  premium          Premium?
+  email            Json                             // Thông tin email (object: {address, verified}).
+  phone            Json?                            // Thông tin số điện thoại (object: {e164, verified}), có thể null.
 
-  presence         Presence?
-  devices          Device[]
-  privacy          Privacy?
-  settings         Settings?
-  mfa              TwoFactor?
-  securityLog      SecurityLog[]
-  connections      Connection[]
+  disabled         Boolean  @default(false)        // Đánh dấu tài khoản bị vô hiệu hóa (ban/lock).
 
-  createdTimestamp Int?
-  deletedAt        DateTime?
+  globalName       String?                          // Nickname toàn hệ thống (giống Discord global name).
+  bio              String?  @default("")            // Tiểu sử/mô tả cá nhân (profile bio).
+  avatar           String?                          // Lonk ảnh đại diện.
+  banner           String?                          // Link ảnh banner.
+  accentColor      Int?                             // Màu profile dạng số (RGB integer).
+  hexAccentColor   String?                          // Màu profile dạng chuỗi hex (#RRGGBB).
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  badges           Json[]                           // Mảng các huy hiệu (badge). Ví dụ: [{code: "EARLY_SUPPORTER", grantedAt: "..."}].
+  premium          Json?                            // Thông tin subscription Nitro/Premium. 
+                                                   // Ví dụ: {active: true, tier: 2, expiresAt: "..."}.
+
+  presence         Json?                            // Trạng thái hiện diện (online/offline/idle/dnd) + custom status, activities.
+  devices          Json[]                           // Danh sách thiết bị đăng nhập (web/ios/android), IP, lastActiveAt, pushToken...
+  privacy          Json?                            // Cài đặt quyền riêng tư: allowDMFrom, friendRequest, showActivity, showOnlineStatus.
+  settings         Json?                            // Cài đặt cá nhân: theme, locale, timezone, notifications, voice, UI.
+  mfa              Json?                            // Cấu hình bảo mật 2FA: enabled, type (totp/webauthn), backupCodes.
+
+  deleted          Boolean @default(false)          // Đánh dấu đã xóa (soft delete). Nếu true => account coi như bị xóa.
+  deletedAt        DateTime?                        // Thời điểm xóa (soft delete).
+
+  createdAt        DateTime @default(now())         // Thời điểm tạo user (Mongo tự set).
+  updatedAt        DateTime @updatedAt              // Thời điểm cập nhật gần nhất (Prisma auto update mỗi lần save).
+
+  @@map("user")                                    // Đặt tên collection trong Mongo là "user".
 }
-
-type Email {
-  address  String
-  verified Boolean @default(false)
-}
-
-type Phone {
-  e164     String
-  verified Boolean @default(false)
-}
-
-type TwoFactor {
-  enabled          Boolean @default(false)
-  type             String  @default("totp")
-  backupCodesHash  String[]
-}
-
-type Presence {
-  status       String   @default("offline")
-  customStatus Json?
-  activities   Json[]
-  lastActiveAt DateTime?
-}
-
-type Privacy {
-  allowDMFrom     String  @default("everyone")
-  friendRequest   String  @default("everyone")
-  showActivity    Boolean @default(true)
-  showOnlineStatus Boolean @default(true)
-}
-
-type Settings {
-  theme        String   @default("dark")
-  locale       String   @default("en-US")
-  timezone     String   @default("UTC")
-  notifications Json
-  voice        Json
-  compactMode  Boolean  @default(false)
-  fontScale    Float    @default(1.0)
-}
-
-type Badge {
-  code      String
-  grantedAt DateTime @default(now())
-}
-
-type Premium {
-  active    Boolean @default(false)
-  tier      Int     @default(0)
-  expiresAt DateTime?
-}
-
-type Device {
-  deviceId      String?
-  platform      String?
-  lastIp        String?
-  lastActiveAt  DateTime?
-  pushTokenRef  String?
-}
-
-type SecurityLog {
-  type      String
-  ip        String?
-  userAgent String?
-  at        DateTime @default(now())
-}
-
-type Connection {
-  provider        String
-  username        String?
-  externalId      String
-  linkedAt        DateTime @default(now())
-  visibleOnProfile Boolean @default(true)
-
-  @@map("user")
-}
-
