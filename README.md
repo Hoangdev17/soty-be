@@ -104,14 +104,7 @@ NODE_ENV="development"
 
 ```bash
 # Generate Prisma client
-npx prisma generate
-
-# Chạy migration
-npx prisma migrate dev
-
-# Seed dữ liệu mẫu (optional)
-npx prisma db seed
-```
+npx run prisma:generate
 
 ### 5. **Khởi chạy ứng dụng**
 
