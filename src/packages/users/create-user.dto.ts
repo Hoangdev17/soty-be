@@ -1,24 +1,39 @@
+// src/packages/users/dto/create-user.dto.ts
 import { z } from 'zod';
 import { createZodDto } from 'nestjs-zod';
 import { ApiProperty } from '@nestjs/swagger';
 
-// ========== SCHEMA ==========
-export const RegisterSchema = z.object({
+// ========== ZOD SCHEMA ==========
+export const CreateUserSchema = z.object({
+  username: z.string().min(3).max(50).describe('Tên đăng nhập (unique)'),
   email: z.email().describe('Email người dùng'),
-  password: z.string().min(6).max(128).describe('Mật khẩu tối thiểu 6 ký tự'),
-  username: z.string().min(1).max(100).describe('Tên hiển thị'),
+  passwordHash: z
+    .string()
+    .min(6)
+    .max(128)
+    .describe('Mật khẩu tối thiểu 6 ký tự'),
   phone: z.string().optional().describe('Số điện thoại'),
   disabled: z.boolean().default(false).describe('Trạng thái khóa tài khoản'),
   globalName: z.string().optional().describe('Tên toàn cục (global username)'),
   bio: z.string().optional().describe('Tiểu sử người dùng'),
   avatar: z.string().optional().describe('URL ảnh đại diện'),
   banner: z.string().optional().describe('URL banner'),
-  accentColor: z.string().optional().describe('Màu chủ đạo dạng text'),
+  accentColor: z
+    .number()
+    .int()
+    .optional()
+    .describe('Màu chủ đạo dạng số (RGB integer)'),
   hexAccentColor: z.string().optional().describe('Màu chủ đạo dạng hex'),
 });
 
 // ========== DTO ==========
-export class RegisterDto extends createZodDto(RegisterSchema) {
+export class CreateUserDto extends createZodDto(CreateUserSchema) {
+  @ApiProperty({
+    description: 'Tên đăng nhập (unique)',
+    example: 'johndoe',
+  })
+  username: string;
+
   @ApiProperty({
     description: 'Email người dùng',
     example: 'johndoe@example.com',
@@ -26,16 +41,10 @@ export class RegisterDto extends createZodDto(RegisterSchema) {
   email: string;
 
   @ApiProperty({
-    description: 'Mật khẩu (tối thiểu 6 ký tự)',
+    description: 'Mật khẩu tối thiểu 6 ký tự',
     example: 'secret123',
   })
   password: string;
-
-  @ApiProperty({
-    description: 'Tên hiển thị của người dùng',
-    example: 'John Doe',
-  })
-  username: string;
 
   @ApiProperty({
     description: 'Số điện thoại',
@@ -80,11 +89,11 @@ export class RegisterDto extends createZodDto(RegisterSchema) {
   banner?: string;
 
   @ApiProperty({
-    description: 'Màu chủ đạo dạng text',
-    example: 'blue',
+    description: 'Màu chủ đạo dạng số (RGB integer)',
+    example: 0x5865f2,
     required: false,
   })
-  accentColor?: string;
+  accentColor?: number;
 
   @ApiProperty({
     description: 'Màu chủ đạo dạng hex',
