@@ -1,7 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { RegisterDto } from '../auth/dto/register.dto';
 
 @ApiTags('users')
 @Controller('users')

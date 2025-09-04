@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 
 @Injectable()
