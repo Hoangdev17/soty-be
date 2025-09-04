@@ -1,10 +1,3 @@
-enum SessionStatus { 
-    ACTIVE
-    REVOKED
-    EXPIRED
-    SUSPECT
-}
-
 enum PresenceStatus {
     ONLINE
     OFFLINE
@@ -13,33 +6,19 @@ enum PresenceStatus {
 }
 enum MfaType {
     TOTP 
-    EBAUTHN 
+    WEBAUTHN 
+}
+
+enum Platform {
+  WEB
+  IOS
+  ANDROID
+  DESKTOP
 }
 
 type PhoneInfo { 
   e164 String 
   verified Boolean 
-}
-
-type Session {
-  sessionId         String        // UUID
-  refreshTokenHash  String        // hash (argon2/bcrypt)
-  status            SessionStatus        // ACTIVE | REVOKED | EXPIRED | SUSPECT
-  createdAt         DateTime
-  expiresAt         DateTime
-  revokedAt         DateTime?
-  revokedReason     String?
-
-  // Audit / ràng buộc thiết bị
-  deviceId          String?
-  deviceName        String?
-  userAgent         String?
-  ip                String?
-  lastUsedAt        DateTime?
-
-  // Rotation & reuse detection
-  tokenId           String?       // jti hiện tại
-  replacedByTokenId String?       // jti tiếp theo khi rotate
 }
 
 /// Huy hiệu (badge) người dùng
@@ -57,7 +36,7 @@ type Premium {
 
 /// Trạng thái hiện diện (presence)
 type Presence {
-  status     PresenceStatus    // online | offline | idle | dnd
+  status     PresenceStatus @default(OFFLINE)    // online | offline | idle | dnd
   customText String?   // Custom status text
   activities String[]  // Danh sách activity đang chạy (game, streaming...)
   lastUpdated DateTime?
@@ -65,7 +44,7 @@ type Presence {
 
 /// Thiết bị đăng nhập
 type Device {
-  platform    String    // web | ios | android | desktop
+  platform    Platform   // web | ios | android | desktop
   ip          String?
   lastActiveAt DateTime?
   pushToken   String?   // token dùng cho push notification
@@ -73,10 +52,10 @@ type Device {
 
 /// Cài đặt quyền riêng tư
 type Privacy {
-  allowDMFrom        Boolean  // Cho phép DM từ người lạ
-  allowFriendRequest Boolean
-  showActivity       Boolean
-  showOnlineStatus   Boolean
+  allowDMFrom        Boolean @default(true)
+  allowFriendRequest Boolean @default(true)
+  showActivity       Boolean @default(true)
+  showOnlineStatus   Boolean @default(true)
 }
 
 /// Cài đặt cá nhân (UI, ngôn ngữ, notify…)
@@ -103,6 +82,7 @@ model User {
   email            String                          // Thông tin email { address, verified }
   phone            PhoneInfo?                       // Thông tin số điện thoại { e164, verified }, có thể null
   disabled         Boolean  @default(false)          // Cờ vô hiệu hóa tài khoản
+  refreshToken     String?                           // Token
 
   globalName       String?                           // Nickname toàn hệ thống
   bio              String?  @default("")             // Tiểu sử cá nhân (profile bio)
@@ -118,7 +98,6 @@ model User {
   privacy          Privacy?                          // Cài đặt quyền riêng tư (friend request, DM…)
   settings         Settings?                         // Cài đặt cá nhân (theme, locale, notify…)
   mfa              Mfa?                              // Cấu hình bảo mật 2FA (TOTP/WebAuthn)
-  sessions         Session[]          // Các phiên đăng nhập (refresh token, deviceId, IP…)
 
   deleted          Boolean @default(false)           // Cờ soft-delete
   deletedAt        DateTime?                         // Thời điểm xóa (nếu có)
