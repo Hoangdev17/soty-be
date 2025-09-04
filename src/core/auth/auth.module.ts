@@ -3,9 +3,30 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { PrismaService } from '../prisma/prisma.service';
+import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { ConfigModule } from '@nestjs/config';
+import { UsersModule } from 'src/packages/users/users.module';
+import { UsersService } from 'src/packages/users/users.service';
 
 @Module({
-  providers: [AuthService, PrismaService, SnowflakeID],
+  imports: [
+    ConfigModule,
+    PassportModule,
+    JwtModule.register({
+      secret: process.env.AUTH_JWT_SECRET,
+      signOptions: { expiresIn: '1h' },
+    }),
+  ],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    PrismaService,
+    SnowflakeID,
+    UsersService,
+  ],
   controllers: [AuthController],
+  exports: [AuthService],
 })
 export class AuthModule {}
