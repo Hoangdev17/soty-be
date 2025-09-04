@@ -6,14 +6,20 @@ import { SnowflakeID } from 'src/utils/snowflake';
 export class UsersService {
   constructor(
     private prisma: PrismaService,
-    private snowFlakeId: SnowflakeID, // instance
+    private snowFlakeId: SnowflakeID,
   ) {}
 
-  async createUser() {
+  async createUser(dto: {
+    username: string;
+    email: string;
+    passwordHash: string;
+  }) {
     return this.prisma.user.create({
       data: {
-        id: this.snowFlakeId.generate(), // OK
-        name: 'hoang',
+        id: this.snowFlakeId.generate(),
+        username: dto.username,
+        email: dto.email,
+        passwordHash: dto.passwordHash,
       },
     });
   }

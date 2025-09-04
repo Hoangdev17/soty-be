@@ -14,13 +14,13 @@ model User {
   username         String   @unique                // Tên đăng nhập.
   passwordHash     String                          // Mật khẩu đã băm (hash) bằng bcrypt.
 
-  email            Json                             // Thông tin email (object: {address, verified}).
+  email            String   @unique                // Thông tin email (object: {address, verified}).
   phone            Json?                            // Thông tin số điện thoại (object: {e164, verified}), có thể null.
 
   disabled         Boolean  @default(false)        // Đánh dấu tài khoản bị vô hiệu hóa (ban/lock).
 
   globalName       String?                          // Nickname toàn hệ thống (giống Discord global name).
-  bio              String?  @default("")            // Tiểu sử/mô tả cá nhân (profile bio).
+  bio              String?                          // Tiểu sử/mô tả cá nhân (profile bio).
   avatar           String?                          // Lonk ảnh đại diện.
   banner           String?                          // Link ảnh banner.
   accentColor      Int?                             // Màu profile dạng số (RGB integer).
