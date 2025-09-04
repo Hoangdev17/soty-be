@@ -13,33 +13,12 @@ enum PresenceStatus {
 }
 enum MfaType {
     TOTP 
-    EBAUTHN 
+    WEBAUTHN 
 }
 
 type PhoneInfo { 
   e164 String 
   verified Boolean 
-}
-
-type Session {
-  sessionId         String        // UUID
-  refreshTokenHash  String        // hash (argon2/bcrypt)
-  status            SessionStatus        // ACTIVE | REVOKED | EXPIRED | SUSPECT
-  createdAt         DateTime
-  expiresAt         DateTime
-  revokedAt         DateTime?
-  revokedReason     String?
-
-  // Audit / ràng buộc thiết bị
-  deviceId          String?
-  deviceName        String?
-  userAgent         String?
-  ip                String?
-  lastUsedAt        DateTime?
-
-  // Rotation & reuse detection
-  tokenId           String?       // jti hiện tại
-  replacedByTokenId String?       // jti tiếp theo khi rotate
 }
 
 /// Huy hiệu (badge) người dùng
@@ -57,7 +36,7 @@ type Premium {
 
 /// Trạng thái hiện diện (presence)
 type Presence {
-  status     PresenceStatus    // online | offline | idle | dnd
+  status     PresenceStatus @default(OFFLINE)    // online | offline | idle | dnd
   customText String?   // Custom status text
   activities String[]  // Danh sách activity đang chạy (game, streaming...)
   lastUpdated DateTime?
@@ -103,6 +82,7 @@ model User {
   email            String                          // Thông tin email { address, verified }
   phone            PhoneInfo?                       // Thông tin số điện thoại { e164, verified }, có thể null
   disabled         Boolean  @default(false)          // Cờ vô hiệu hóa tài khoản
+  refreshToken     String                           // Token
 
   globalName       String?                           // Nickname toàn hệ thống
   bio              String?  @default("")             // Tiểu sử cá nhân (profile bio)
