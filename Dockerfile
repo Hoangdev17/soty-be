@@ -7,9 +7,6 @@ RUN npm install
 
 COPY . .
 
-# Merge multi-file Prisma schema
-RUN npx ts-node scripts/merge-prisma.ts
-
 # Generate Prisma Client
 RUN npx prisma generate
 
