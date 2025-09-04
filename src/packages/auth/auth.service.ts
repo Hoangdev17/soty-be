@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
-import { PrismaService } from 'src/prisma.service';
 import { SnowflakeID } from 'src/utils/snowflake';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
@@ -13,7 +13,7 @@ export class AuthService {
   async register(dto: RegisterDto) {
     // 1. Kiểm tra email đã tồn tại chưa
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { username: dto.username },
     });
 
     if (existingUser) {
