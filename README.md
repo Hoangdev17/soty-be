@@ -11,7 +11,7 @@ Nền tảng kết hợp tính năng **chat real-time, news feed và short video
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | **[NestJS](https://nestjs.com/)**                                                                       | Node.js framework hiện đại với TypeScript |
 | **[Prisma](https://www.prisma.io/)**                                                                    | ORM type-safe cho PostgreSQL              |
-| **[PostgreSQL](https://www.postgresql.org/)**                                                           | Hệ quản trị cơ sở dữ liệu chính           |
+| **[MongoDB](https://www.mongo.org/)**                                                           | Hệ quản trị cơ sở dữ liệu chính           |
 | **[Redis](https://redis.io/)**                                                                          | Cache, Pub/Sub và message queue           |
 | **[Socket.IO](https://socket.io/)** / **WebRTC**                                                        | Giao tiếp real-time                       |
 | **[AWS S3](https://aws.amazon.com/s3/)** / **[Cloudflare R2](https://www.cloudflare.com/products/r2/)** | Lưu trữ media (ảnh, video)                |
