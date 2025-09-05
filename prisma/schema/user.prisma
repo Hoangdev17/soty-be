@@ -79,16 +79,16 @@ model User {
   id               String   @id @map("_id")          // ID duy nhất (Mongo ObjectId dạng string)
   username         String   @unique                 // Tên đăng nhập (unique)
   passwordHash     String                            // Mật khẩu đã băm (bcrypt)
-  email            String                          // Thông tin email { address, verified }
+  email            String   @unique                      // Thông tin email { address, verified }
   phone            String?                       // Thông tin số điện thoại { e164, verified }, có thể null
   disabled         Boolean  @default(false)          // Cờ vô hiệu hóa tài khoản
   refreshTokenHash     String?                           // Token
 
   globalName       String?                           // Nickname toàn hệ thống
-  bio              String?  @default("")             // Tiểu sử cá nhân (profile bio)
+  bio              String?          // Tiểu sử cá nhân (profile bio)
   avatar           String?                           // URL ảnh đại diện
   banner           String?                           // URL ảnh banner profile
-  accentColor      Int?                              // Màu profile dạng số (RGB integer)
+  accentColor      String?                              // Màu profile dạng số (RGB integer)
   hexAccentColor   String?                           // Màu profile dạng hex (#RRGGBB)
 
   badges           Badge[]              // Danh sách huy hiệu (badge) của user

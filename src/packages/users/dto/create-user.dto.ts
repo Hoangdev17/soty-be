@@ -19,8 +19,7 @@ export const CreateUserSchema = z.object({
   avatar: z.string().optional().describe('URL ảnh đại diện'),
   banner: z.string().optional().describe('URL banner'),
   accentColor: z
-    .number()
-    .int()
+    .string()
     .optional()
     .describe('Màu chủ đạo dạng số (RGB integer)'),
   hexAccentColor: z.string().optional().describe('Màu chủ đạo dạng hex'),
@@ -94,7 +93,7 @@ export class CreateUserDto extends createZodDto(CreateUserSchema) {
     example: 0x5865f2,
     required: false,
   })
-  accentColor?: number;
+  accentColor?: string;
 
   @ApiProperty({
     description: 'Màu chủ đạo dạng hex',

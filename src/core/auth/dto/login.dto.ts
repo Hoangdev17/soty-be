@@ -4,14 +4,14 @@ import { ApiProperty } from '@nestjs/swagger';
 
 // ========== SCHEMA ==========
 export const LoginSchema = z.object({
-  username: z.string().min(1).max(100).describe('Tên đăng nhập'),
+  email: z.email().min(1).max(100).describe('Email'),
   password: z.string().min(6).max(128).describe('Mật khẩu'),
 });
 
 // ========== DTO ==========
 export class LoginDto extends createZodDto(LoginSchema) {
-  @ApiProperty({ example: 'johndoe', description: 'Tên đăng nhập' })
-  username: string;
+  @ApiProperty({ example: 'johndoe@gmail.com', description: 'Email' })
+  email: string;
 
   @ApiProperty({ example: 'secret123', description: 'Mật khẩu của người dùng' })
   password: string;
