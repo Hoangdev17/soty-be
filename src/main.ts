@@ -7,6 +7,7 @@ async function bootstrap() {
 
   // Swagger config
   setupSwagger(app);
+  app.enableCors();
 
   await app.listen(3000);
 }

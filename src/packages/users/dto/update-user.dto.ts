@@ -67,7 +67,7 @@ export class UpdateUserDto extends createZodDto(UpdateUserSchema) {
     description: 'Màu chủ đạo dạng số (RGB integer)',
     example: 0x123456,
   })
-  accentColor?: number;
+  accentColor?: string;
 
   @ApiPropertyOptional({
     description: 'Màu chủ đạo dạng hex',

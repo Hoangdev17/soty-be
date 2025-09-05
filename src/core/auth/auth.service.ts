@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -20,55 +21,50 @@ export class AuthService {
   ) {}
 
   async register(dto: CreateUserDto) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Check tồn tại
-      const existingUser = await tx.user.findUnique({
-        where: { username: dto.username },
-      });
-
-      if (existingUser) {
-        throw new ConflictException('Username hoặc email đã được sử dụng');
-      }
-
-      // 2. Hash password
-      const passwordHash = await bcrypt.hash(dto.passwordHash, 10);
-
-      // 3. Tạo user
-      const user = await this.userService.createUser({ ...dto, passwordHash });
-
-      // 4. Tạo tokens
-      const payload = { sub: user.id, username: user.username };
-      const { accessToken, refreshToken } =
-        await this.tokenUtil.generateTokens(payload);
-
-      // 5. Hash & lưu refreshToken
-      const hashedRefresh = await bcrypt.hash(refreshToken, 10);
-      await tx.user.update({
-        where: { id: user.id },
-        data: { refreshTokenHash: hashedRefresh },
-      });
-
-      // 6. Return
-      return {
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-        },
-        accessToken,
-        refreshToken,
-      };
+    // 1. Check tồn tại
+    const existingUser = await this.prisma.user.findUnique({
+      where: { username: dto.username },
     });
+    if (existingUser)
+      throw new ConflictException('Username hoặc email đã được sử dụng');
+
+    // 2. Hash password
+    const passwordHash = await bcrypt.hash(dto.passwordHash, 10);
+
+    // 3. Tạo user
+    const user = await this.userService.createUser({ ...dto, passwordHash });
+
+    // 4. Tạo token
+    const payload = { sub: user.id, username: user.username };
+    const { accessToken, refreshToken } =
+      await this.tokenUtil.generateTokens(payload);
+
+    // 5. Hash & lưu refreshToken
+    const hashedRefresh = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { refreshTokenHash: hashedRefresh },
+    });
+
+    // 6. Return **không bao gồm password**
+    const { passwordHash: _, refreshTokenHash: _token, ...safeUser } = user; // loại bỏ passwordHash
+
+    // 6. Return
+    return {
+      safeUser,
+      accessToken,
+      refreshToken,
+    };
   }
 
   async login(dto: LoginDto) {
     // 1. Tìm user theo username
     const user = await this.prisma.user.findUnique({
-      where: { username: dto.username },
+      where: { email: dto.email },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Sai username hoặc password');
+      throw new BadRequestException('Sai email hoặc password');
     }
 
     // 2. So sánh password
@@ -77,7 +73,7 @@ export class AuthService {
       user.passwordHash,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Sai username hoặc password');
+      throw new BadRequestException('Sai username hoặc password');
     }
 
     // 3. Sinh tokens
@@ -92,9 +88,11 @@ export class AuthService {
       data: { refreshTokenHash: hashedRefresh },
     });
 
+    const { passwordHash: _, refreshTokenHash: _token, ...safeUser } = user;
+
     // 5. Return
     return {
-      user,
+      user: safeUser,
       accessToken,
       refreshToken,
     };
