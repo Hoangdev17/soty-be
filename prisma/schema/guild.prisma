@@ -1,0 +1,307 @@
+// ================== ENUMS (CONFIG & TYPES) ==================
+
+enum NotifLevel {
+  ALL_MESSAGES      // Nhận thông báo tất cả tin nhắn
+  ONLY_MENTIONS     // Chỉ nhận khi có @mention
+}
+
+enum ContentFilter {
+  DISABLED              // Không lọc
+  MEMBERS_WITHOUT_ROLES // Lọc nội dung NSFW cho user không có role
+  ALL_MEMBERS           // Lọc cho tất cả
+}
+
+enum VerifyLevel {
+  NONE      // Không cần xác minh
+  LOW       // Yêu cầu email verified
+  MEDIUM    // Yêu cầu đăng ký >5 phút
+  HIGH      // Yêu cầu member là bạn của ai đó
+  VERY_HIGH // Yêu cầu số điện thoại verified
+}
+
+enum NsfwLevel {
+  DEFAULT        // Bình thường
+  EXPLICIT       // Có nội dung nhạy cảm
+  SAFE           // Server an toàn
+  AGE_RESTRICTED // Giới hạn tuổi
+}
+
+enum MfaLevel {
+  NONE      // Không bắt buộc 2FA
+  ELEVATED  // Admin phải có 2FA
+}
+
+enum PremiumTier {
+  NONE
+  TIER_1
+  TIER_2
+  TIER_3
+}
+
+enum ChannelType {
+  GUILD_TEXT
+  GUILD_VOICE
+  GUILD_CATEGORY
+  GUILD_STAGE_VOICE
+  GUILD_FORUM
+  GUILD_ANNOUNCEMENT
+}
+
+enum EventEntity {
+  STAGE_INSTANCE // Sự kiện diễn ra trên Stage channel
+  VOICE          // Sự kiện voice
+  EXTERNAL       // Sự kiện bên ngoài Discord
+}
+
+enum EventStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+// ================== CORE MODELS ==================
+
+model Guild {
+  id                        String   @id @map("_id")    
+
+  name                       String   // Tên server
+  icon                       String?  // Icon server (hash hoặc URL)
+  banner                     String?  // Banner trang trí
+  splash                     String?  // Ảnh splash khi vào server bằng invite
+  description                String?  // Mô tả server
+
+  ownerId                    String   // ID chủ sở hữu server
+  owner       User     @relation(fields: [ownerId], references: [id])
+
+  // CONFIG
+  defaultMessageNotifications NotifLevel   @default(ONLY_MENTIONS) // Cấu hình thông báo mặc định
+  explicitContentFilter       ContentFilter @default(DISABLED)     // Lọc NSFW
+  verificationLevel           VerifyLevel   @default(NONE)         // Mức xác minh
+  nsfwLevel                   NsfwLevel     @default(DEFAULT)      // Mức NSFW
+  mfaLevel                    MfaLevel      @default(NONE)         // Yêu cầu 2FA
+
+  // PREMIUM
+  premiumTier                 PremiumTier   @default(NONE)         // Cấp độ boost
+  premiumSubscriptionCount    Int           @default(0)            // Số lượng boost
+  premiumProgressBarEnabled   Boolean       @default(false)        // Hiện progress bar boost
+
+  // LIMITS
+  maximumBitrate              Int?          // Bitrate tối đa (kbps)
+  maxMembers                  Int?          // Giới hạn số member
+  maxPresences                Int?          // Giới hạn presence (thường null)
+  maxStageVideoChannelUsers   Int?          // Giới hạn stage video
+  maxVideoChannelUsers        Int?          // Giới hạn video call
+
+  // VANITY / WIDGET
+  vanityURLCode               String?       @unique                // Link invite tùy chỉnh
+  vanityURLUses               Int           @default(0)            // Số lần dùng vanity
+  widgetEnabled               Boolean       @default(false)        // Bật widget công khai
+  widgetChannelId             String?                              // Channel hiển thị widget
+  widgetChannel   Channel? @relation("WidgetChannel", fields: [widgetChannelId], references: [id])
+
+  // SYSTEM CHANNELS
+  systemChannelId        String?                                   // Kênh system messages
+  systemChannel          Channel? @relation("GuildSystemChannel",        fields: [systemChannelId],        references: [id])
+
+  rulesChannelId         String?                                   // Kênh luật server
+  rulesChannel           Channel? @relation("GuildRulesChannel",         fields: [rulesChannelId],         references: [id])
+
+  publicUpdatesChannelId String?                                   // Kênh nhận thông báo
+  publicUpdatesChannel   Channel? @relation("GuildPublicUpdatesChannel", fields: [publicUpdatesChannelId], references: [id])
+
+  safetyAlertsChannelId  String?                                   // Kênh cảnh báo an toàn
+  safetyAlertsChannel    Channel? @relation("GuildSafetyAlertsChannel",  fields: [safetyAlertsChannelId],  references: [id])
+
+  systemChannelFlags          Int           @default(0)  // Bitfield ẩn/hiện join msg, boost msg
+
+  // META
+  shardId                     Int?                           // Guild thuộc shard nào
+  available                   Boolean       @default(true)   // Có khả dụng hay không
+  createdAt                   DateTime      @default(now())  // Thời điểm tạo trong DB
+
+  // RELATIONS
+  channels                    Channel[]
+  roles                       Role[]
+  members                     GuildMember[]
+  emojis                      Emoji[]
+  stickers                    Sticker[]
+  invites                     Invite[]
+  bans                        Ban[]
+  events                      ScheduledEvent[]
+
+  @@index([ownerId])
+  @@map("guild")
+}
+
+model Channel {
+  id            String      @id @map("_id")     
+
+  guildId       String                          // Liên kết Guild
+  guild     Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  name          String                          // Tên channel
+  type          ChannelType                     // Loại channel
+  topic         String?                         // Chủ đề
+  position      Int?                            // Thứ tự hiển thị
+
+  parentId      String?                         // Category cha
+  parent   Channel?  @relation("ChannelParent", fields: [parentId], references: [id])
+  children Channel[] @relation("ChannelParent")
+
+  bitrate       Int?                            // Voice bitrate
+
+  userLimit     Int?                            // Giới hạn số user trong voice
+
+  guild         Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@index([guildId, type])
+  @@index([guildId, parentId])
+  @@index([guildId, name])
+  @@map("channel")
+}
+
+model Role {
+  id            String   @id @map("_id")
+  guildId       String
+  name          String
+  color         Int?
+  hoist         Boolean @default(false)
+  position      Int?
+  permissions   BigInt  @default(0)
+  managed       Boolean @default(false)
+  mentionable   Boolean @default(false)
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  members       GuildMemberRole[]
+
+  @@index([guildId])
+  @@index([guildId, position])
+  @@map("role")
+}
+
+model GuildMember {
+  id                 String   @id @map("_id")
+  guildId            String
+  userId             String
+  nick               String?
+  joinedAt           DateTime?
+  deaf               Boolean  @default(false)
+  mute               Boolean  @default(false)
+  pending            Boolean  @default(false)
+  communicationDisabledUntil DateTime?
+
+  guild              Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  roles              GuildMemberRole[]
+
+  @@unique([guildId, userId])        // 1 user chỉ có 1 membership trong 1 guild
+  @@index([guildId, joinedAt])
+  @@map("guild_member")
+}
+
+model GuildMemberRole {
+  guildMemberId String
+  roleId        String
+  guildId       String     // thừa kế guild để query nhanh & ràng buộc logic cùng-guild
+
+  guildMember   GuildMember @relation(fields: [guildMemberId], references: [id], onDelete: Cascade)
+  role          Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // Khoá chính tổng hợp để tránh trùng (một member không nhận cùng 1 role hai lần)
+  @@id([guildMemberId, roleId])
+
+  // Index phục vụ truy vấn phổ biến
+  @@index([guildId, roleId])         // Lấy tất cả member theo role trong 1 guild
+  @@index([guildId, guildMemberId])  // Lấy tất cả role theo member trong 1 guild
+
+  @@map("guild_member_role")
+}
+
+model Emoji {
+  id            String   @id @map("_id") 
+  guildId       String  
+  name          String                        // Tên emoji
+  animated      Boolean  @default(false)      // Có động không
+  available     Boolean  @default(true)       // Có dùng được không
+  creatorId     String?                       // Người tạo
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@index([guildId, name])
+  @@map("emoji")
+}
+
+model Sticker {
+  id            String   @id @map("_id") 
+  guildId       String  
+  name          String                        // Tên sticker
+  description   String?                       // Mô tả
+  tags          String?                       // Tag liên quan
+  formatType    Int?                          // 1=PNG,2=APNG,3=LOTTIE
+  available     Boolean @default(true)        // Có dùng được không
+
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@index([guildId, name])
+  @@map("sticker")
+}
+
+model Invite {
+  id              String    @id @map("_id") 
+  code            String    @unique              // Mã invite
+  guildId         String    
+  channelId       String?                        // Channel liên quan
+  inviterId String?                              // Ai tạo invite
+  uses            Int       @default(0)          // Số lần dùng
+  maxUses         Int?                           // Giới hạn số lần
+  maxAgeSeconds   Int?                           // Hết hạn (giây)
+  temporary       Boolean   @default(false)      // Member sẽ out khi disconnect?
+  createdAt       DateTime  @default(now())      // Thời điểm tạo
+
+  guild           Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channel         Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@index([guildId, channelId])
+  @@map("invite")
+}
+
+model Ban {
+  id              String    @id @map("_id") 
+  guildId         String  
+  userId String                                // User bị ban
+  reason          String?                      // Lý do
+  createdAt       DateTime  @default(now())    // Ngày giờ ban
+
+  guild           Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, createdAt])
+  @@map("ban")
+}
+
+model ScheduledEvent {
+  id               String       @id @map("_id") 
+  guildId          String      
+  channelId        String?   
+  creatorId String?                                   // Ai tạo event
+  name             String                             // Tên sự kiện
+  description      String?                            // Mô tả
+  entityType       EventEntity                        // Loại sự kiện
+  status           EventStatus  @default(SCHEDULED)   // Trạng thái
+  scheduledStartTime DateTime                         // Bắt đầu
+  scheduledEndTime   DateTime?                        // Kết thúc
+  location         String?                            // Cho EXTERNAL
+  image            String?                            // Ảnh banner event
+
+  guild            Guild        @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channel          Channel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@index([guildId, status])
+  @@index([guildId, scheduledStartTime])
+  @@map("scheduled_event")
+}
