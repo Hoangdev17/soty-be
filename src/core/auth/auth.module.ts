@@ -9,6 +9,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from 'src/packages/users/users.module';
 import { UsersService } from 'src/packages/users/users.service';
+import { TokenUtil } from 'src/utils/token.util';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UsersService } from 'src/packages/users/users.service';
     PrismaService,
     SnowflakeID,
     UsersService,
+    TokenUtil,
   ],
   controllers: [AuthController],
   exports: [AuthService],

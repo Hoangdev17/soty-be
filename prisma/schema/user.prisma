@@ -80,9 +80,9 @@ model User {
   username         String   @unique                 // Tên đăng nhập (unique)
   passwordHash     String                            // Mật khẩu đã băm (bcrypt)
   email            String                          // Thông tin email { address, verified }
-  phone            PhoneInfo?                       // Thông tin số điện thoại { e164, verified }, có thể null
+  phone            String?                       // Thông tin số điện thoại { e164, verified }, có thể null
   disabled         Boolean  @default(false)          // Cờ vô hiệu hóa tài khoản
-  refreshToken     String?                           // Token
+  refreshTokenHash     String?                           // Token
 
   globalName       String?                           // Nickname toàn hệ thống
   bio              String?  @default("")             // Tiểu sử cá nhân (profile bio)
@@ -99,6 +99,7 @@ model User {
   settings         Settings?                         // Cài đặt cá nhân (theme, locale, notify…)
   mfa              Mfa?                              // Cấu hình bảo mật 2FA (TOTP/WebAuthn)
 
+  isVerify      Boolean @default(false)
   deleted          Boolean @default(false)           // Cờ soft-delete
   deletedAt        DateTime?                         // Thời điểm xóa (nếu có)
   createdAt        DateTime @default(now())          // Thời điểm tạo user

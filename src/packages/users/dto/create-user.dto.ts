@@ -24,6 +24,7 @@ export const CreateUserSchema = z.object({
     .optional()
     .describe('Màu chủ đạo dạng số (RGB integer)'),
   hexAccentColor: z.string().optional().describe('Màu chủ đạo dạng hex'),
+  refreshTokenHash: z.string().optional(),
 });
 
 // ========== DTO ==========
@@ -44,7 +45,7 @@ export class CreateUserDto extends createZodDto(CreateUserSchema) {
     description: 'Mật khẩu tối thiểu 6 ký tự',
     example: 'secret123',
   })
-  password: string;
+  passwordHash: string;
 
   @ApiProperty({
     description: 'Số điện thoại',
