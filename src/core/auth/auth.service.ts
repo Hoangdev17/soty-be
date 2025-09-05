@@ -51,7 +51,7 @@ export class AuthService {
 
     // 6. Return
     return {
-      safeUser,
+      user: safeUser,
       accessToken,
       refreshToken,
     };
