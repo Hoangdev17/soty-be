@@ -7,7 +7,14 @@ export function setupSwagger(app: INestApplication) {
     .setTitle('Soty - Social Community Platform')
     .setDescription('API documentation for my project')
     .setVersion('1.0')
-    .addBearerAuth() // nếu muốn JWT
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      'access-token',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

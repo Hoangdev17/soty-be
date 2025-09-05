@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SnowflakeID } from 'src/utils/snowflake';
-import { CreateUserDto } from './create-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -14,9 +15,16 @@ export class UsersService {
     return this.prisma.user.create({
       data: {
         id: this.snowFlakeId.generate(),
-        username: dto.username,
-        email: dto.email,
-        passwordHash: dto.passwordHash,
+        ...dto,
+      },
+    });
+  }
+
+  async updateUser(userId: string, dto: UpdateUserDto) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...dto,
       },
     });
   }
