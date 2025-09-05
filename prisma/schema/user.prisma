@@ -83,6 +83,7 @@ model User {
   phone            String?                       // Thông tin số điện thoại { e164, verified }, có thể null
   disabled         Boolean  @default(false)          // Cờ vô hiệu hóa tài khoản
   refreshTokenHash     String?                           // Token
+  ownedGuilds  Guild[] // back-relation cho Guild.owner
 
   globalName       String?                           // Nickname toàn hệ thống
   bio              String?          // Tiểu sử cá nhân (profile bio)
