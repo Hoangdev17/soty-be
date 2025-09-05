@@ -25,7 +25,7 @@ export class UpdateUserDto extends createZodDto(UpdateUserSchema) {
     description: 'Mật khẩu mới',
     example: 'newSecret123',
   })
-  password?: string;
+  passwordHash?: string;
 
   @ApiPropertyOptional({
     description: 'Số điện thoại',

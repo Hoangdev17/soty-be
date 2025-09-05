@@ -9,5 +9,6 @@ import { AuthModule } from 'src/core/auth/auth.module';
   imports: [AuthModule],
   controllers: [UsersController],
   providers: [UsersService, SnowflakeID, PrismaService],
+  exports: [UsersService],
 })
 export class UsersModule {}
