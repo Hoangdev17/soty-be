@@ -84,6 +84,12 @@ model User {
   disabled         Boolean  @default(false)          // Cờ vô hiệu hóa tài khoản
   refreshTokenHash     String?                           // Token
   ownedGuilds  Guild[] // back-relation cho Guild.owner
+  
+  // Server relations
+  ownedServers      Server[]           @relation("ServerOwner")
+  serverMemberships ServerMember[]     @relation("ServerMembers")
+  sentInvites       ServerInvite[]     @relation("ServerInvites")
+  serverMessages    ServerMessage[]    @relation("ServerMessages")
 
   globalName       String?                           // Nickname toàn hệ thống
   bio              String?          // Tiểu sử cá nhân (profile bio)

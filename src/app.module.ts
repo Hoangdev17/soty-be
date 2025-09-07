@@ -7,6 +7,7 @@ import { AuthModule } from './core/auth/auth.module';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { GuildsModule } from './packages/guilds/guilds.module';
+import { ServersModule } from './packages/servers/servers.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { GuildsModule } from './packages/guilds/guilds.module';
     UsersModule,
     AuthModule,
     GuildsModule,
+    ServersModule,
   ],
 
   controllers: [AppController],

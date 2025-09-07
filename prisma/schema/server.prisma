@@ -1,0 +1,192 @@
+// Server Model
+model Server {
+  id          String   @id @default(cuid()) @map("_id")
+  name        String
+  description String?
+  icon        String?
+  banner      String?
+  ownerId     String
+  owner       User     @relation("ServerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Server Settings
+  isPublic    Boolean  @default(false)
+  isVerified  Boolean  @default(false)
+  memberCount Int      @default(1)
+  maxMembers  Int      @default(100000)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  members     ServerMember[]
+  roles       ServerRole[]
+  channels    ServerChannel[]
+  invites     ServerInvite[]
+  categories  ServerCategory[]
+  
+  @@map("servers")
+}
+
+// Server Member Model
+model ServerMember {
+  id        String   @id @default(cuid()) @map("_id")
+  serverId  String
+  userId    String
+  joinedAt  DateTime @default(now())
+  
+  // Member Settings
+  nickname  String?
+  isMuted   Boolean  @default(false)
+  isDeafened Boolean @default(false)
+  
+  // Relations
+  server    Server     @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user      User       @relation("ServerMembers", fields: [userId], references: [id], onDelete: Cascade)
+  roles     MemberRole[]
+  
+  @@unique([serverId, userId])
+  @@map("server_members")
+}
+
+// Server Role Model
+model ServerRole {
+  id          String   @id @default(cuid()) @map("_id")
+  serverId    String
+  name        String
+  color       String   @default("#99aab5")
+  position    Int      @default(0)
+  isMentionable Boolean @default(true)
+  isHoisted   Boolean  @default(false)
+  
+  // Permissions (Bitfield)
+  permissions BigInt   @default(0)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  server      Server       @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  members     MemberRole[]
+  
+  @@map("server_roles")
+}
+
+// Member Role Junction
+model MemberRole {
+  id       String @id @default(cuid()) @map("_id")
+  memberId String
+  roleId   String
+  
+  member   ServerMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role     ServerRole   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@unique([memberId, roleId])
+  @@map("member_roles")
+}
+
+// Server Invite Model
+model ServerInvite {
+  id          String    @id @default(cuid()) @map("_id")
+  serverId    String
+  code        String    @unique
+  inviterId   String
+  maxUses     Int?      // null = unlimited
+  uses        Int       @default(0)
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  server      Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  inviter     User      @relation("ServerInvites", fields: [inviterId], references: [id], onDelete: Cascade)
+  
+  @@map("server_invites")
+}
+
+// Server Channel Model
+model ServerChannel {
+  id          String   @id @default(cuid()) @map("_id")
+  serverId    String
+  name        String
+  type        ServerChannelType @default(TEXT)
+  position    Int      @default(0)
+  topic       String?
+  isNsfw      Boolean  @default(false)
+  
+  // Channel Settings
+  rateLimit   Int?     // Slow mode in seconds
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  messages    ServerMessage[]
+  
+  @@map("server_channels")
+}
+
+// Server Category Model
+model ServerCategory {
+  id        String   @id @default(cuid()) @map("_id")
+  serverId  String
+  name      String
+  position  Int      @default(0)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  
+  @@map("server_categories")
+}
+
+// Server Message Model
+model ServerMessage {
+  id        String   @id @default(cuid()) @map("_id")
+  channelId String
+  authorId  String
+  content   String
+  type      ServerMessageType @default(DEFAULT)
+  
+  // Message Settings
+  isEdited  Boolean  @default(false)
+  isPinned  Boolean  @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  channel   ServerChannel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author    User     @relation("ServerMessages", fields: [authorId], references: [id], onDelete: Cascade)
+  
+  @@map("server_messages")
+}
+
+// Enums
+enum ServerChannelType {
+  TEXT
+  VOICE
+  STAGE
+  FORUM
+  ANNOUNCEMENT
+}
+
+enum ServerMessageType {
+  DEFAULT
+  REPLY
+  SYSTEM
+  ANNOUNCEMENT
+}
+
+// Server relations for User model (extend existing User model)
+// Note: This extends the existing User model from user.prisma
+// The relations below should be added to the existing User model
