@@ -17,7 +17,6 @@ export class UsersService {
   ) {}
 
   async createUser(dto: CreateUserDto) {
-   
     // Kiểm tra xem username hoặc email đã tồn tại chưa
     const existingUser = await this.prisma.user.findFirst({
       where: {
@@ -28,14 +27,11 @@ export class UsersService {
       throw new BadRequestException('Username hoặc email đã tồn tại');
     }
 
-    // Hash mật khẩu
-    const hashedPassword = await bcrypt.hash(dto.passwordHash, 10);
-
     return this.prisma.user.create({
       data: {
         id: this.snowFlakeId.generate(),
         ...dto,
-        passwordHash: hashedPassword, // Ghi đè passwordHash bằng mật khẩu đã hash
+        passwordHash: dto.passwordHash, // Ghi đè passwordHash bằng mật khẩu đã hash
       },
     });
   }

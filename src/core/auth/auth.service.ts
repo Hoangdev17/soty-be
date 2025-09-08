@@ -60,11 +60,11 @@ export class AuthService {
   async login(dto: LoginDto) {
     // 1. Tìm user theo email
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email, deleted: false },
     });
 
     if (!user) {
-      throw new BadRequestException('Sai email hoặc password');
+      throw new BadRequestException('Sai email');
     }
 
     // 2. So sánh password
@@ -73,7 +73,7 @@ export class AuthService {
       user.passwordHash,
     );
     if (!isPasswordValid) {
-      throw new BadRequestException('Sai username hoặc password');
+      throw new BadRequestException('Sai password');
     }
 
     // 3. Sinh tokens
@@ -145,5 +145,13 @@ export class AuthService {
         refreshToken: newRefreshToken,
       };
     });
+  }
+
+  async getUserLogging(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    return user;
   }
 }
