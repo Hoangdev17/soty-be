@@ -408,10 +408,10 @@ model GuildChannel {
 
   // The type of the channel
   // ChannelType
-  type Int @default(0)
+  type ChannelType
 
   // Whether the channel is viewable by the client user
-  viewable Boolean @default(true)
+  viewAble Boolean @default(true)
 
   /**
    * Start DM Group
@@ -436,8 +436,8 @@ model GuildChannel {
   deleted Boolean @default(false)
 
   // The guild the channel is in
-  guildId String?
-  guild   Guild?  @relation(fields: [guildId], references: [id])
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id])
 
   messages          GuildMessage[]
   messageReferences GuildMessageReference[]
