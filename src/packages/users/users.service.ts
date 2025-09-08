@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -42,20 +46,16 @@ export class UsersService {
       throw new NotFoundException('Người dùng không tồn tại');
     }
 
-    // Hash mật khẩu nếu được cung cấp
-    const data: any = { ...dto };
-    // if (dto.passwordHash) {
-    //   data.passwordHash = await bcrypt.hash(dto.passwordHash, 10);
-    // }
-
     return this.prisma.user.update({
       where: { id: userId },
-      data,
+      data: { ...dto },
     });
   }
 
   async findById(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId, deleted: false } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deleted: false },
+    });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
     }
@@ -63,7 +63,9 @@ export class UsersService {
   }
 
   async findByEmail(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email, deleted: false } });
+    const user = await this.prisma.user.findUnique({
+      where: { email, deleted: false },
+    });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
     }
@@ -71,7 +73,9 @@ export class UsersService {
   }
 
   async findByUsername(username: string) {
-    const user = await this.prisma.user.findUnique({ where: { username, deleted: false } });
+    const user = await this.prisma.user.findUnique({
+      where: { username, deleted: false },
+    });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
     }
@@ -79,21 +83,22 @@ export class UsersService {
   }
 
   async deleteUser(userId: string) {
-  const user = await this.prisma.user.findUnique({
-    where: { id: userId, deleted: false },
-  });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, deleted: false },
+    });
 
-  if (!user) {
-    throw new NotFoundException('Người dùng không tồn tại hoặc đã bị vô hiệu hóa');
+    if (!user) {
+      throw new NotFoundException(
+        'Người dùng không tồn tại hoặc đã bị vô hiệu hóa',
+      );
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+      },
+    });
   }
-
-  return this.prisma.user.update({
-    where: { id: userId },
-    data: {
-      deleted: true,
-      deletedAt: new Date(),
-    },
-  });
-}
-
 }

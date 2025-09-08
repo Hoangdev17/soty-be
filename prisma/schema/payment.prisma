@@ -1,0 +1,363 @@
+model Wallet {
+  id      String @id @map("_id")
+  balance Float  @default(0) // Total balance
+
+  // Wallet type: "0,USER" or "1,COMMUNITY"
+  walletType Int @default(0)
+
+  // Wallet owner
+  userId  String?        @unique
+  user    User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId String?
+  guild   Guild?         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  // Money sources in wallet
+  sources WalletSource[]
+
+  // Wallet transactions
+  transactions WalletTransaction[]
+
+  // status of wallet: 0=ACTIVE, 1=DISABLED, 2=DELETED, 3=ARCHIVED, 4=LOCKED
+  // 5=FROZEN, 6=RESTRICTED, 7=LIMITED
+  // 8=VERIFIED, 9=UNVERIFIED, 10=SUSPENDED, 11=TERMINATED
+  // 12=EXPIRED, 13=INACTIVE, 14=DEACTIVATED, 15=BLOCKED
+  // 16=REVOKED, 17=TERMINATED, 18=DISCONTINUED, 19=ABANDONED
+  // 20=DECOMMISSIONED, 21=DISBANDED, 22=LIQUIDATED, 23=FORFEITED
+  // 24=RELINQUISHED, 25=DISPOSED, 26=RETIRED, 27=RESIGNED
+  // 28=WITHDRAWN, 29=RETRACTED, 30=ABORTED, 31=CEASED
+  // 32=DISCONTINUED, 33=REVOKED, 34=REPEALED
+  status Int @default(0) // Status of wallet: 0=ACTIVE, 1=DISABLED
+
+  poBalance Float @default(0) // Total po balance
+
+  linkedBankAccounts Json? // Linked bank accounts (if any)
+  totalPayout        Float    @default(0) // Total amount paid out
+  earnings           Float    @default(0) // Total earnings 
+  payout             Payout[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("wallets")
+}
+
+// Money source in wallet
+model WalletSource {
+  id         String @id @map("_id")
+  sourceType Int // Type of source: 0=DONATION, 1=STORE_SALE, 2=AFFILIATE, 3 =REFERRAL_BONUS, 4=OTHER
+  amount     Float  @default(0) // Amount from this source
+  poAmount   Float  @default(0) // Amount Po balance from this source
+  // Relation to wallet
+  walletId   String
+  wallet     Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([walletId, sourceType]) // Index for fast lookup
+  @@map("wallet_sources")
+}
+
+model WalletTransaction {
+  id              String  @id @map("_id")
+  transactionType Int // Transaction type: 0=DONATION_RECEIVED, 1=PAYOUT, 2=REFUND, 3=ADJUSTMENT, 4=DEPOSIT,5=CONVERT_TO_PO, 6=OTHER
+  amount          Float // Transaction amount
+  poAmount        Float   @default(0) // Transaction Po amount
+  description     String? // Transaction description
+  metadata        Json? // Additional data (donation ID, payout ID, etc.)
+
+  // Relation to wallet
+  walletId   String
+  wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  newBalance Float?
+  createdAt  DateTime @default(now())
+
+  // Relation to donations
+  donations Donation[] @relation("DonationToTransaction")
+
+  @@index([walletId, createdAt]) // Index for time-based queries
+  @@map("wallet_transactions")
+}
+
+// Donation model
+model Donation {
+  id          String  @id @map("_id")
+  amount      Float   @default(0) // Donation amount (balance)
+  poAmount    Float   @default(0) // Donation (PO balance)
+  message     String? // Donation message
+  displayMode Int     @default(0) // Display mode: 0=ANONYMOUS, 1=REAL_NAME, 2=CUSTOM_NAME
+  customName  String? // Custom name (if displayMode = 2)
+
+  // Donor
+  donorId String
+  donor   User   @relation("DonorUser", fields: [donorId], references: [id], onDelete: Cascade)
+
+  // Donation recipient (only one of the following three fields is set)
+  // User recipient (if donating to user)
+  recipientId String?
+  recipient   User?   @relation("RecipientUser", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  // Thread being donated to
+  threadId String?
+  thread   GuildChannel? @relation("ThreadDonation", fields: [threadId], references: [id], onDelete: SetNull)
+
+  walletTransactionId String?
+  walletTransaction   WalletTransaction? @relation("DonationToTransaction", fields: [walletTransactionId], references: [id])
+
+  operatingFee Boolean @default(false)
+  // Processing status
+  status       Int     @default(1) // Status: 0=PENDING, 1=COMPLETED, 2=FAILED, 3=REFUNDED
+
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  payment   Payment[]
+
+  @@index([donorId, createdAt]) // Index to find all donations by a donor
+  @@index([recipientId, createdAt]) // Index to find donations to a recipient
+  @@index([threadId, createdAt]) // Index to find donations for a thread
+  @@map("donations")
+}
+
+// Payout model (money withdrawal)
+model Payout {
+  id          String @id @map("_id")
+  amount      Float // Withdrawal amount
+  status      Int    @default(0) // Status: 0=PENDING, 1=PROCESSING, 2=COMPLETED, 3=FAILED
+  bankAccount Json // Payment method details
+
+  // User requesting payout
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  Wallet      Wallet?   @relation(fields: [walletId], references: [id])
+  walletId    String?
+
+  @@index([userId, status]) // Index to find all payouts by a user with status
+  @@map("payouts")
+}
+
+model SubscriptionPlan {
+  id                   String  @id @map("_id")
+  name                 String
+  interval             Int // Billing interval type (0 = monthly, 1 = quarterly, 2 = yearly,3 == One time)
+  intervalCount        Int // Number of intervals 
+  taxInclusive         Boolean @default(false)
+  currency             String
+  price                Float // Price in smallest currency unit (cents for USD)
+  type                 String?
+  linkedSubscriptionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guildSubscriptionListingId String?
+  guildSubscriptionListing   GuildSubscriptionListing? @relation(fields: [guildSubscriptionListingId], references: [id])
+  userSubscriptions          UserSubscription[]
+
+  // Optional role assignment for the subscription
+  roleId String?
+//   role   UserRole? @relation(fields: [roleId], references: [id])
+
+  @@map("subscription_plans")
+}
+
+model UserSubscription {
+  id                String    @id @map("_id")
+  status            Int       @default(0) // 0=ACTIVE, 1=CANCELED, 2=PAST_DUE, 3=UNPAID
+  startDate         DateTime  @default(now())
+  endDate           DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  auto_renew        Boolean   @default(true)
+  gracePeriodEnd    DateTime?
+  // Relations
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  subscriptionPlanId String
+  subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
+
+  guildSubscriptionListingId String?
+  guildSubscriptionListing   GuildSubscriptionListing? @relation(fields: [guildSubscriptionListingId], references: [id])
+
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  unlockedModules SubscriptionModuleAccess[]
+
+  @@map("user_subscriptions")
+}
+
+// --------------------------------------------------------------------
+// Payment
+// - Captures detailed payment information for each order.
+// - Separates payment-related data from order records for clarity and normalization.
+// - Includes payment status and gateway information if applicable.
+// --------------------------------------------------------------------
+model Payment {
+  id            String  @id @map("_id")
+  orderId       String?
+  // EPaymentMethod
+  // 0: Wallet, 1: Credit Card, 2: Debit Card, 3: PayPal, 4: Bank Transfer
+  paymentMethod Int     @default(0)
+  transactionId String? // External transaction reference (if any)
+  amount        Float
+  // EPaymentStatus
+  // 0: Pending, 1: Completed, 2: Failed, 3: Refunded
+
+  donationId String?
+  donation   Donation? @relation(fields: [donationId], references: [id])
+
+  status             Int       @default(0)
+  paidAt             DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now())
+  userId             String?
+  transactionSePayId String?   @unique
+  type               Int?
+  referenceId        String?
+
+  user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+//   order            ShopOrder?        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transactionSePay TransactionSePay? @relation(fields: [transactionSePayId], references: [id])
+//   TransactionLog   TransactionLog[]
+  GuildBoost       GuildBoost[]
+
+  @@index([orderId]) // Index for payment lookups by order
+  @@map("payments")
+}
+
+// --------------------------------------------------------------------
+// TransactionLogDetails
+// - Records detailed information about each transaction event.
+// - Stores audit trail of payment processing activities including responses and timestamps.
+// - Facilitates troubleshooting and reconciliation of payment transactions.
+// --------------------------------------------------------------------
+// model TransactionLogDetail {
+//   id               String   @id @map("_id")
+//   transactionLogId String
+//   detailKey        String
+//   detailValue      String
+//   createdAt        DateTime @default(now())
+//   updatedAt        DateTime @default(now())
+
+//   // Quan hệ với TransactionLog
+// //   transactionLog TransactionLog @relation(fields: [transactionLogId], references: [id], onDelete: Cascade)
+
+//   @@index([transactionLogId])
+//   @@map("transaction_log_details")
+// }
+
+// --------------------------------------------------------------------
+// TransactionLog
+// - Captures all transaction events related to orders, payments, and sales.
+// - Provides a comprehensive audit trail for all financial activities.
+// - Facilitates tracking of user actions and system-generated events.
+// - Supports rollback and recovery processes in case of errors or disputes.
+// --------------------------------------------------------------------
+// model TransactionLog {
+//   id              String   @id @map("_id")
+//   orderId         String? // Nếu giao dịch liên quan đến ShopOrder
+//   paymentId       String? // Nếu giao dịch liên quan đến Payment
+//   saleId          String? // Nếu giao dịch liên quan đến ShopSale
+//   userId          String? // ID người thực hiện giao dịch
+//   operationType   String // Ví dụ: "CREATE", "UPDATE", "DELETE"
+//   transactionHash String? // Mã băm của giao dịch
+//   createdAt       DateTime @default(now())
+//   updatedAt       DateTime @default(now())
+
+//   order   ShopOrder?             @relation(fields: [orderId], references: [id])
+//   payment Payment?               @relation(fields: [paymentId], references: [id])
+//   sale    ShopSale?              @relation(fields: [saleId], references: [id])
+//   // Quan hệ 1-n với bảng TransactionLogDetail
+//   details TransactionLogDetail[]
+
+//   @@index([orderId])
+//   @@index([paymentId])
+//   @@index([saleId])
+//   @@index([userId])
+//   @@map("transaction_logs")
+// }
+
+model TransactionSePay {
+  id                 String   @id @map("_id")
+  transactionId      String
+  gateway            String
+  transactionDate    DateTime
+  accountNumber      String?
+  subAccount         String?
+  amountIn           Float    @default(0)
+  amountOut          Float    @default(0)
+  accumulated        Float    @default(0)
+  code               String?
+  transactionContent String?
+  referenceNumber    String?
+  body               String?
+  createdAt          DateTime @default(now())
+  payment            Payment?
+  paymentId          String?  @unique
+
+  @@map("transactions_sepay")
+}
+
+model FailedWebhookTransaction {
+  id              String    @id @map("_id")
+  paymentId       String // Nếu giao dịch liên quan đến Payment
+  webhookSource   String // Nguồn webhook: "momo", "vnpay", "zalopay", etc.
+  webhookId       String? // ID webhook từ provider (nếu có)
+  // Thông tin giao dịch
+  operationType   String // "CREATE", "UPDATE", "DELETE"
+  transactionHash String? // Mã băm của giao dịch
+  amount          Float? // Số tiền giao dịch
+  currency        String? // Đơn vị tiền tệ
+  // Trạng thái xử lý
+  status          Int // 0: Pending, 1: Completed, 2: Failed, 3: Refunded
+  processedAt     DateTime? // Thời điểm xử lý thành công
+  retryCount      Int       @default(0)
+  maxRetries      Int       @default(3)
+  // Thông tin lỗi
+  metadata        Json? // Thông tin bổ sung về giao dịch
+  lastError       String?
+  errorDetails    Json?
+
+  @@map("failed_webhook_transaction")
+}
+
+model PlanBenefit {
+  id              String   @id @map("_id")
+  name            String // Benefit name (e.g., "AI Token Limit")
+  displayName     String?
+  description     String? // Detailed description
+  type            String // Benefit type
+  valueType       String // Value type
+  unit            String? // Unit (e.g., "tokens", "GB", "users", "courses")
+  category        String? // Category (e.g., "ai", "storage", "support", "feature")
+  icon            String? // Icon for the benefit
+  sortOrder       Int      @default(0) // Display order
+  // Benefit values - EXTENSION
+  booleanValue    Boolean? // For on/off features
+  numberValue     Int? // For quantity limits
+  stringValue     String? // For text-based values
+  isUnlimited     Boolean  @default(false) // Unlimited flag
+  // RESET CYCLE for benefits
+  resetCycle      Int? // MONTHLY, WEEKLY, DAILY, NEVER
+  // SPECIAL attributes
+  isFeatureAccess Boolean  @default(false) // Grants feature access
+  isQuantityLimit Boolean  @default(false) // Is a quantity limit
+  isStorageLimit  Boolean  @default(false) // Is a storage limit
+  // Metadata and state
+  metadata        Json? // Store complex configuration
+  isEnabled       Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+//   roleBenefitId String?
+//   roleBenefit   UserRoleBenefit? @relation(fields: [roleBenefitId], references: [id])
+
+//   @@unique([roleBenefitId, name])
+//   @@unique([roleBenefitId, category, name])
+  @@map("plan_benefits")
+}
