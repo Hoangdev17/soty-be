@@ -3,11 +3,6 @@ enum GUILD_VISIBILITY {
   PRIVATE
 }
 
-enum GUILD_ACCESSIBILITY {
-  FREE
-  PAID
-}
-
 enum GUILD_PAYMENT_MODEL {
   SUBSCRIPTION
   ONE_TIME
@@ -16,9 +11,6 @@ enum GUILD_PAYMENT_MODEL {
 model Guild {
   // The guild's id
   id String @id @map("_id")
-
-  // The guild's accessibility
-  accessibility GUILD_ACCESSIBILITY @default(FREE)
 
   // Whether the guild is available to access. If it is not available, it indicates a server outage
   available Boolean @default(true)
@@ -88,9 +80,6 @@ model Guild {
   // The hash of the guild's system channel
   notificationChannelId String?
   systemChannelId       String?
-
-  // Whether this guild is verified
-  verified Boolean @default(false)
 
   // The guild's vanity URL code
   vanityUrlCode String?

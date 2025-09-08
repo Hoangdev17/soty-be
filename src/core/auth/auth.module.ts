@@ -8,7 +8,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule } from '@nestjs/config';
 import { UsersModule } from 'src/packages/users/users.module';
-import { UsersService } from 'src/packages/users/users.service';
 import { TokenUtil } from 'src/utils/token.util';
 
 @Module({
@@ -19,15 +18,9 @@ import { TokenUtil } from 'src/utils/token.util';
       secret: process.env.AUTH_JWT_SECRET,
       signOptions: { expiresIn: '1h' },
     }),
+    UsersModule,
   ],
-  providers: [
-    AuthService,
-    JwtStrategy,
-    PrismaService,
-    SnowflakeID,
-    UsersService,
-    TokenUtil,
-  ],
+  providers: [AuthService, JwtStrategy, PrismaService, SnowflakeID, TokenUtil],
   controllers: [AuthController],
   exports: [AuthService],
 })

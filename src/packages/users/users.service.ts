@@ -17,6 +17,7 @@ export class UsersService {
   ) {}
 
   async createUser(dto: CreateUserDto) {
+   
     // Kiểm tra xem username hoặc email đã tồn tại chưa
     const existingUser = await this.prisma.user.findFirst({
       where: {
