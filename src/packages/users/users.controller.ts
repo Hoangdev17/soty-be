@@ -14,6 +14,7 @@ export class UsersController {
   @Post()
   @ApiOperation({ summary: 'Đăng ký người dùng mới' })
   async create(@Body() dto: CreateUserDto) {
+    
     return await this.usersService.createUser(dto);
   }
 

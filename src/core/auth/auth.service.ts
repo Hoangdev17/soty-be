@@ -23,7 +23,7 @@ export class AuthService {
   async register(dto: CreateUserDto) {
     // 1. Check tồn tại
     const existingUser = await this.prisma.user.findUnique({
-      where: { username: dto.username },
+      where: { email: dto.email },
     });
     if (existingUser)
       throw new ConflictException('Username hoặc email đã được sử dụng');
@@ -58,7 +58,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    // 1. Tìm user theo username
+    // 1. Tìm user theo email
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
