@@ -107,4 +107,23 @@ model User {
   updatedAt        DateTime @updatedAt               // Thời điểm cập nhật gần nhất
 
   @@map("user")                                   
+  GuildMemberBanned GuildMemberBanned[]
+  GuildMember GuildMember[]
+  GuildJoinRequest GuildJoinRequest[]
+  GuildPermissionOverwrite GuildPermissionOverwrite[]
+  GuildMessage GuildMessage[]
+  PinnedMessage PinnedMessage[]
+  GuildMessageMention GuildMessageMention[]
+  GuildEmoji GuildEmoji[]
+  GuildMessageReactionUser GuildMessageReactionUser[]
+  GuildAnimatedImage GuildAnimatedImage[]
+  GuildEvent GuildEvent[]
+  GuildSticker GuildSticker[]
+  GuildBoost GuildBoost[]
+  Wallet Wallet[]
+  Donation Donation[] @relation("DonorUser")
+  DonationRecipent Donation[] @relation("RecipientUser")
+  Payout Payout[]
+  UserSubscription UserSubscription[]
+  Payment Payment[]
 }
