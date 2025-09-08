@@ -7,9 +7,10 @@ import { PermissionsGuard } from './guards/permissions.guard';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MembersModule } from './modules/members/members.module';
+import { ChannelsModule } from './channels/channels.module';
 
 @Module({
-  imports: [RolesModule, PermissionsModule, MembersModule],
+  imports: [RolesModule, PermissionsModule, MembersModule, ChannelsModule],
   controllers: [CommunityController],
   providers: [CommunityService, PermissionsGuard, PrismaService, SnowflakeID],
   exports: [

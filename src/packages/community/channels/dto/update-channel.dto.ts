@@ -1,0 +1,58 @@
+import { createZodDto } from "nestjs-zod";
+import { createChannelSchema } from "./create-channel.dto";
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { ChannelType } from "@prisma/client";
+
+// ========== ZOD SCHEMA ==========
+export const updateChannelSchema = createChannelSchema.partial();
+
+// ========== DTO ==========
+export class UpdateChannelDto extends createZodDto(updateChannelSchema) {
+    @ApiPropertyOptional({ example: "general", description: "Tên của kênh" })
+  name?: string;
+
+  @ApiPropertyOptional({ example: false, description: "Kênh dành cho nội dung người lớn" })
+  nsfw?: boolean;
+
+  @ApiPropertyOptional({ example: "Nơi thảo luận chung", description: "Chủ đề của kênh" })
+  topic?: string;
+
+  @ApiPropertyOptional({ example: "TEXT", description: "Loại kênh (văn bản hoặc thoại)" })
+  type?: ChannelType;
+
+  @ApiPropertyOptional({ example: true, description: "Kênh có thể được quản lý bởi người dùng" })
+  manageable?: boolean;
+
+  @ApiPropertyOptional({ example: false, description: "Kênh có phải là kênh riêng tư hay không" })
+  isPrivate?: boolean;
+
+  @ApiPropertyOptional({ example: 5, description: "Giới hạn tốc độ gửi tin nhắn cho người dùng (giây)" })
+  rateLimitPerUser?: number;
+
+  @ApiPropertyOptional({ example: true, description: "Kênh có thể xem được bởi mọi người" })
+  viewAble?: boolean;
+
+  @ApiPropertyOptional({ example: ["9876543210", "1122334455"], description: "Danh sách ID người nhận (dành cho kênh thoại)" })
+  recepients?: string[];
+
+  @ApiPropertyOptional({ example: 50, description: "Số lượng người dùng tối đa trong kênh thoại" })
+  maxMembers?: number;
+
+  @ApiPropertyOptional({ example: "2025-09-08T10:00:00.000Z", description: "Thời gian tạo kênh" })
+  createdAt?: Date;
+
+  @ApiPropertyOptional({ example: true, description: "Kênh có thể bị xóa hay không" })
+  deleteable?: boolean;
+
+  @ApiPropertyOptional({ example: null, description: "Thời gian xóa kênh" })
+  deletedAt?: Date;
+
+  @ApiPropertyOptional({ example: false, description: "Kênh đã bị xóa hay chưa" })
+  deleted?: boolean;
+
+  @ApiPropertyOptional({ example: ["1234567890"], description: "Danh sách ID người dùng được phép truy cập kênh riêng tư" })
+  allowUserIds?: string[];
+
+  @ApiPropertyOptional({ example: ["0987654321"], description: "Danh sách ID vai trò được phép truy cập kênh riêng tư" })
+  allowRoleIds?: string[];
+}

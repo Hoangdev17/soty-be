@@ -342,7 +342,7 @@ model GuildPermissionOverwrite {
 
   // The type of this overwrite
   // PermissionOverwriteType
-  type Int @default(0)
+  type PermissionOverwriteType @default(ROLE) // 0 = Role, 1 = Member
 
   @@unique([channelId, targetId, type])
   @@index([userId, channelId])
@@ -391,67 +391,63 @@ model GuildChannel {
   parent   GuildChannel?  @relation("ParentToChild", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children GuildChannel[] @relation("ParentToChild")
 
-  // A manager of permission overwrites that belong to this channel
+  // Permission overwrites
   permissionOverwrites GuildPermissionOverwrite[]
 
-  // If the permissionOverwrites match the parent channel, null if no parent
+  // Sync with parent
   permissionsLocked Boolean @default(false)
 
-  // The position of the channel
+  // Position
   position Int
 
-  // Amount of seconds a user has to wait before sending another message (0-21600)
+  // Slowmode (0-21600)
   rateLimitPerUser Int? @default(0)
 
-  // The topic of the channel
+  // Topic
   topic String?
 
-  // The type of the channel
-  // ChannelType
-  type Int @default(0)
+  // Channel type
+  type ChannelType
 
-  // Whether the channel is viewable by the client user
-  viewable Boolean @default(true)
+  // Privacy (threads only by comment, nhưng ta dùng cho private logic)
+  isPrivate Boolean @default(false)
+
+  // Viewable by client user
+  viewAble Boolean @default(true)
 
   /**
    * Start DM Group
    */
   recipients String[] @default([])
   maxMembers Int?
-
   /**
    * End DM Group
    */
 
-  // The time the channel was created at
+  // Timestamps & flags
   createdAt DateTime @default(now())
-
-  // The time the channel was deleted at
   deletedAt DateTime?
-
-  // Whether the channel is deletable by the client user
   deletable Boolean @default(true)
+  deleted   Boolean @default(false)
 
-  // Whether the channel is deleted
-  deleted Boolean @default(false)
+  // Guild relation
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id])
 
-  // The guild the channel is in
-  guildId String?
-  guild   Guild?  @relation(fields: [guildId], references: [id])
-
+  // Messages & refs
   messages          GuildMessage[]
   messageReferences GuildMessageReference[]
   messageMentions   GuildMessageMention[]
 
-  // a manager donations that belong to this channel (thread)
+  // Donations (thread)
   donations Donation[] @relation("ThreadDonation")
 
-  // a manager notifications that belong to this channel (thread)
-  // notifications           Notification[]
-  // botIntegrations         BotIntegration[]
-  // notificationPreferences NotificationPreference[]
+  // NEW: allow-list via ChannelAllows
+  channelAllows  Json?
 
+  // Indexes & constraints
   @@index([guildId, parentId])
+  @@index([guildId, type, isPrivate]) // tối ưu lọc theo loại & private
   @@map("guild_channels")
 }
 
