@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../core/prisma/prisma.service';
-import { SnowflakeID } from '../../../utils/snowflake';
+import { PrismaService } from '../../../../core/prisma/prisma.service';
+import { SnowflakeID } from '../../../../utils/snowflake';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 

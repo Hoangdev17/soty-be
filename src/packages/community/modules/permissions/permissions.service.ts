@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../core/prisma/prisma.service';
-import { GuildPermissions } from '../constants/guild-permissions';
+import { PrismaService } from '../../../../core/prisma/prisma.service';
+import { GuildPermissions } from '../../constants/guild-permissions';
 
 @Injectable()
-export class CommunityPermissionService {
+export class PermissionsService {
   constructor(private prisma: PrismaService) {}
 
   async hasPermission(
