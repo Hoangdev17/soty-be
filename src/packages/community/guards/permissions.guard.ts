@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
-import { CommunityPermissionService } from '../services/community-permission.service';
+import { PermissionsService } from '../modules/permissions/permissions.service';
 import type { AuthenticatedRequest } from '../../../core/auth/dto/request-with-auth.dto';
 
 interface RequestWithParams extends AuthenticatedRequest {
@@ -17,7 +17,7 @@ interface RequestWithParams extends AuthenticatedRequest {
 export class PermissionsGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private permissionService: CommunityPermissionService,
+    private permissionService: PermissionsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

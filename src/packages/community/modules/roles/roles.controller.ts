@@ -12,12 +12,12 @@ import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
-import { JwtAuthGuard } from '../../../core/auth/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../guards/permissions.guard';
+import { JwtAuthGuard } from '../../../../core/auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../guards/permissions.guard';
 import {
   RequireManageRoles,
   RequireAdministrator,
-} from '../decorators/permission-shortcuts.decorator';
+} from '../../decorators/permission-shortcuts.decorator';
 import {
   ApiTags,
   ApiOperation,

@@ -3,25 +3,21 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { SnowflakeID } from '../../utils/snowflake';
 import { CommunityController } from './community.controller';
 import { CommunityService } from './community.service';
-import { CommunityPermissionService } from './services/community-permission.service';
 import { PermissionsGuard } from './guards/permissions.guard';
-import { RolesModule } from './roles/roles.module';
+import { RolesModule } from './modules/roles/roles.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { MembersModule } from './modules/members/members.module';
 
 @Module({
-  imports: [RolesModule],
+  imports: [RolesModule, PermissionsModule, MembersModule],
   controllers: [CommunityController],
-  providers: [
-    CommunityService,
-    CommunityPermissionService,
-    PermissionsGuard,
-    PrismaService,
-    SnowflakeID,
-  ],
+  providers: [CommunityService, PermissionsGuard, PrismaService, SnowflakeID],
   exports: [
     CommunityService,
-    CommunityPermissionService,
     PermissionsGuard,
     RolesModule,
+    PermissionsModule,
+    MembersModule,
   ],
 })
 export class CommunityModule {}

@@ -11,6 +11,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { CommunityService } from './community.service';
+import { MembersService } from './modules/members/members.service';
+import { PermissionsService } from './modules/permissions/permissions.service';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { JoinCommunityDto } from './dto/join-community.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
@@ -32,7 +34,11 @@ import type { AuthenticatedRequest } from 'src/core/auth/dto/request-with-auth.d
 @ApiTags('Community')
 @Controller('community')
 export class CommunityController {
-  constructor(private readonly communityService: CommunityService) {}
+  constructor(
+    private readonly communityService: CommunityService,
+    private readonly membersService: MembersService,
+    private readonly permissionsService: PermissionsService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new community' })
@@ -118,7 +124,7 @@ export class CommunityController {
     @Param('id') communityId: string,
     @Body() joinDto: JoinCommunityDto,
   ) {
-    return this.communityService.joinCommunity(communityId, joinDto.userId);
+    return this.membersService.joinCommunity(communityId, joinDto.userId);
   }
 
   @Delete(':id/leave')
@@ -140,7 +146,7 @@ export class CommunityController {
   })
   @ApiResponse({ status: 404, description: 'Community not found' })
   getCommunityMembers(@Param('id') communityId: string) {
-    return this.communityService.getCommunityMembers(communityId);
+    return this.membersService.getCommunityMembers(communityId);
   }
 
   @Get(':id/members/:userId/permissions')
@@ -154,6 +160,6 @@ export class CommunityController {
     @Param('id') guildId: string,
     @Param('userId') userId: string,
   ) {
-    return this.communityService.getMemberPermissions(guildId, userId);
+    return this.membersService.getMemberPermissions(guildId, userId);
   }
 }
