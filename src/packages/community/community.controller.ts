@@ -73,6 +73,20 @@ export class CommunityController {
     return this.communityService.searchCommunities(query);
   }
 
+  @Get('me')
+  @ApiOperation({
+    summary: 'Get communities where current user is member or owner',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User communities retrieved successfully',
+  })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  getUserCommunities(@Req() req: AuthenticatedRequest) {
+    return this.communityService.getUserCommunities(req.user.id);
+  }
+
   @Get('owner/:ownerId')
   @ApiOperation({ summary: 'Get communities by owner' })
   @ApiResponse({

@@ -214,4 +214,41 @@ export class CommunityService {
       },
     });
   }
+
+  async getUserCommunities(userId: string) {
+    // Get communities where user is owner
+    const ownedCommunities = await this.prisma.guild.findMany({
+      where: { ownerId: userId },
+    });
+
+    // Get communities where user is member (but not owner)
+    const memberCommunities = await this.prisma.guild.findMany({
+      where: {
+        AND: [
+          { ownerId: { not: userId } },
+          {
+            members: {
+              some: {
+                userId: userId,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    // Combine and mark ownership status
+    const allCommunities = [
+      ...ownedCommunities.map((community) => ({
+        ...community,
+        isOwner: true,
+      })),
+      ...memberCommunities.map((community) => ({
+        ...community,
+        isOwner: false,
+      })),
+    ];
+
+    return allCommunities;
+  }
 }
