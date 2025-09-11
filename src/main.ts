@@ -11,7 +11,15 @@ async function bootstrap() {
 
   // Swagger config
   setupSwagger(app);
-  app.enableCors();
+
+  app.enableCors({
+    origin: [
+      'http://localhost:3000', // nếu dev frontend local
+      'https://your-frontend-domain.com', // domain frontend đã deploy
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
 
   await app.listen(3000);
 }
