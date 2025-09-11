@@ -4,15 +4,22 @@ import { SnowflakeID } from '../../utils/snowflake';
 import { CommunityController } from './community.controller';
 import { CommunityService } from './community.service';
 import { PermissionsGuard } from './guards/permissions.guard';
-import { ChannelsModule } from './channels/channels.module';
+import { ChannelsModule } from './modules/channels/channels.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MembersModule } from './modules/members/members.module';
+import { ChannelsService } from './modules/channels/channels.service';
 
 @Module({
-  imports: [RolesModule, ChannelsModule],
+  imports: [RolesModule, ChannelsModule, PermissionsModule, MembersModule],
   controllers: [CommunityController],
-  providers: [CommunityService, PermissionsGuard, PrismaService, SnowflakeID],
+  providers: [
+    CommunityService,
+    PermissionsGuard,
+    PrismaService,
+    SnowflakeID,
+    ChannelsService,
+  ],
   exports: [
     CommunityService,
     PermissionsGuard,
