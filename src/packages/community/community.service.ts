@@ -348,4 +348,45 @@ export class CommunityService {
       member,
     };
   }
+
+  async getUserCommunities(userId: string) {
+    return this.prisma.guild.findMany({
+      where: {
+        OR: [
+          {
+            ownerId: userId,
+          },
+          {
+            members: {
+              some: {
+                userId,
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                globalName: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        owner: {
+          select: {
+            id: true,
+            username: true,
+            globalName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+  }
 }
