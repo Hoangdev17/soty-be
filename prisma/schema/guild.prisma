@@ -398,7 +398,7 @@ model GuildChannel {
   permissionsLocked Boolean @default(false)
 
   // The position of the channel
-  position Int
+  position Int?
 
   // Amount of seconds a user has to wait before sending another message (0-21600)
   rateLimitPerUser Int? @default(0)
