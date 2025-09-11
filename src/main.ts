@@ -15,7 +15,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'http://localhost:3000', // nếu dev frontend local
-      'https://your-frontend-domain.com', // domain frontend đã deploy
+      'https://soty-fe.vercel.app', // domain frontend đã deploy
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
