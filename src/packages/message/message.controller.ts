@@ -6,6 +6,7 @@ import {
   Req,
   Get,
   Param,
+  Query,
 } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -30,7 +31,11 @@ export class MessageController {
   }
 
   @Get(':channelId')
-  async getMessages(@Param('channelId') channelId: string) {
-    return this.messageService.getMessages(channelId);
+  async getMessages(
+    @Param('channelId') channelId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.messageService.getMessages(channelId, limit, offset);
   }
 }

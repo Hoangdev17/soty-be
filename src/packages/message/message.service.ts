@@ -55,18 +55,21 @@ export class MessageService {
     };
   }
 
-  async getMessages(channelId: string) {
+  async getMessages(channelId: string, limit?: string, offset?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 50;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+
     return await this.prismaService.guildMessage.findMany({
-      where: { channelId: channelId },
+      where: { channelId },
+      orderBy: { createdAt: 'desc' },
+      take: limitNum,
+      skip: offsetNum,
       select: {
+        id: true,
         content: true,
         createdAt: true,
         author: {
-          select: {
-            id: true,
-            username: true,
-            avatar: true,
-          },
+          select: { id: true, username: true, avatar: true },
         },
       },
     });
