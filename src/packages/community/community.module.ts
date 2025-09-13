@@ -12,7 +12,13 @@ import { UploadsModule } from '../uploads/uploads.module';
 import { ChannelsService } from './modules/channels/channels.service';
 
 @Module({
-  imports: [UploadsModule, RolesModule, ChannelsModule, PermissionsModule, MembersModule],
+  imports: [
+    UploadsModule,
+    RolesModule,
+    ChannelsModule,
+    PermissionsModule,
+    MembersModule,
+  ],
 
   controllers: [CommunityController],
   providers: [

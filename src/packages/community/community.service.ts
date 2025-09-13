@@ -3,7 +3,10 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { SnowflakeID } from '../../utils/snowflake';
 import { UpdateCommunityDto } from './dto/update-community.dto';
-import { GuildPermissions } from './constants/guild-permissions';
+import {
+  GuildPermissions,
+  PermissionUtils,
+} from './constants/guild-permissions';
 
 @Injectable()
 export class CommunityService {
@@ -41,7 +44,7 @@ export class CommunityService {
         id: everyoneRoleId,
         name: '@everyone',
         guildId: guildId,
-        permissions: GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS,
+        permissions: PermissionUtils.getDefaultPermissions(),
         position: 0,
         hoist: false,
         mentionable: false,
@@ -56,7 +59,7 @@ export class CommunityService {
         id: adminRoleId,
         name: 'Admin',
         guildId: guildId,
-        permissions: GuildPermissions.ADMINISTRATOR,
+        permissions: ['ADMINISTRATOR'],
         position: 1,
         hoist: true,
         mentionable: true,
@@ -70,8 +73,8 @@ export class CommunityService {
       data: {
         id: ownerMemberId,
         guildId: guildId,
-        userId: userId,
-        permissions: [GuildPermissions.ADMINISTRATOR.toString()],
+        userId,
+        permissions: ['ADMINISTRATOR'],
       },
     });
 
@@ -115,7 +118,7 @@ export class CommunityService {
   }
 
   async findOne(id: string) {
-    return this.prisma.guild.findUnique({
+    const guild = await this.prisma.guild.findUnique({
       where: { id },
       include: {
         members: {
@@ -149,6 +152,11 @@ export class CommunityService {
         },
       },
     });
+
+    if (!guild) return null;
+
+    // Permissions are already String[] in the schema, no conversion needed
+    return guild;
   }
 
   async update(id: string, updateCommunityDto: UpdateCommunityDto) {
@@ -196,7 +204,7 @@ export class CommunityService {
         id: memberId,
         guildId: communityId,
         userId,
-        permissions: [GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS.toString()],
+        permissions: PermissionUtils.getDefaultPermissions(),
       },
     });
 
@@ -331,15 +339,20 @@ export class CommunityService {
     });
 
     if (!member) {
-      return { permissions: 0n, roles: [] };
+      return { permissions: [], roles: [] };
     }
 
-    // Calculate combined permissions from all roles
-    let combinedPermissions = 0n;
+    // Calculate combined permissions from all roles (String[] format)
+    const combinedPermissions: string[] = [];
     const memberRoles = member.roles.map((r) => r.role);
 
     for (const role of memberRoles) {
-      combinedPermissions |= role.permissions;
+      // Combine permissions arrays
+      role.permissions.forEach((permission) => {
+        if (!combinedPermissions.includes(permission)) {
+          combinedPermissions.push(permission);
+        }
+      });
     }
 
     return {

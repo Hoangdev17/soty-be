@@ -9,9 +9,9 @@ export class PermissionsService {
   async hasPermission(
     guildId: string,
     userId: string,
-    permission: bigint,
+    permission: string,
   ): Promise<boolean> {
-    // Check if user is guild owner
+    // Guild owner has all permissions
     const guild = await this.prisma.guild.findUnique({
       where: { id: guildId },
       select: { ownerId: true },
@@ -40,18 +40,23 @@ export class PermissionsService {
       return false; // User is not a member
     }
 
-    let combinedPermissions = 0n;
+    const combinedPermissions: string[] = [];
     for (const memberRole of member.roles) {
-      combinedPermissions |= memberRole.role.permissions;
+      // Combine permissions arrays
+      memberRole.role.permissions.forEach((permission) => {
+        if (!combinedPermissions.includes(permission)) {
+          combinedPermissions.push(permission);
+        }
+      });
     }
 
-    return GuildPermissions.hasPermission(combinedPermissions, permission);
+    return combinedPermissions.includes(permission);
   }
 
   async requirePermission(
     guildId: string,
     userId: string,
-    permission: bigint,
+    permission: string,
     errorMessage?: string,
   ): Promise<void> {
     const hasPermission = await this.hasPermission(guildId, userId, permission);
@@ -63,30 +68,26 @@ export class PermissionsService {
   }
 
   async canManageRoles(guildId: string, userId: string): Promise<boolean> {
-    return this.hasPermission(guildId, userId, GuildPermissions.MANAGE_ROLES);
+    return this.hasPermission(guildId, userId, 'MANAGE_ROLES');
   }
 
   async canKickMembers(guildId: string, userId: string): Promise<boolean> {
-    return this.hasPermission(guildId, userId, GuildPermissions.KICK_MEMBERS);
+    return this.hasPermission(guildId, userId, 'KICK_MEMBERS');
   }
 
   async canBanMembers(guildId: string, userId: string): Promise<boolean> {
-    return this.hasPermission(guildId, userId, GuildPermissions.BAN_MEMBERS);
+    return this.hasPermission(guildId, userId, 'BAN_MEMBERS');
   }
 
   async canManageChannels(guildId: string, userId: string): Promise<boolean> {
-    return this.hasPermission(
-      guildId,
-      userId,
-      GuildPermissions.MANAGE_CHANNELS,
-    );
+    return this.hasPermission(guildId, userId, 'MANAGE_CHANNELS');
   }
 
   async canManageGuild(guildId: string, userId: string): Promise<boolean> {
-    return this.hasPermission(guildId, userId, GuildPermissions.MANAGE_GUILD);
+    return this.hasPermission(guildId, userId, 'MANAGE_GUILD');
   }
 
   async isAdministrator(guildId: string, userId: string): Promise<boolean> {
-    return this.hasPermission(guildId, userId, GuildPermissions.ADMINISTRATOR);
+    return this.hasPermission(guildId, userId, 'ADMINISTRATOR');
   }
 }

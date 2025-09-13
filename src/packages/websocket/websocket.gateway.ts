@@ -1,0 +1,190 @@
+import {
+  WebSocketGateway,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  WebSocketServer,
+  MessageBody,
+  ConnectedSocket,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../../core/prisma/prisma.service';
+import { WEBSOCKET_EVENTS } from './websocket-events.types';
+import type {
+  JoinRoomPayload,
+  LeaveRoomPayload,
+  SendMessagePayload,
+  JoinedRoomData,
+  LeftRoomData,
+  MessageData,
+  AuthenticatedUser,
+  WebSocketResponse,
+} from './websocket-events.types';
+
+declare module 'socket.io' {
+  interface Socket {
+    user?: AuthenticatedUser;
+  }
+}
+
+@WebSocketGateway({
+  cors: {
+    origin: '*', // Configure CORS as needed for your frontend
+  },
+})
+export class WebsocketGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
+  @WebSocketServer()
+  server: Server;
+
+  private logger: Logger = new Logger('WebsocketGateway');
+
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly prismaService: PrismaService,
+  ) {}
+
+  handleConnection(client: Socket) {
+    try {
+      // Extract token from handshake query or headers
+      const token =
+        (client.handshake.query.token as string) ||
+        client.handshake.headers.authorization?.replace('Bearer ', '');
+
+      if (token) {
+        try {
+          const payload: AuthenticatedUser = this.jwtService.verify(token);
+          client.user = payload;
+          this.logger.log(
+            `Client connected: ${client.id}, User: ${payload.sub}`,
+          );
+          console.log(`Client connected: ${client.id}, User: ${payload.sub}`);
+        } catch (error) {
+          const err = error as Error;
+          this.logger.error(
+            `Invalid token for client ${client.id}: ${err.message}`,
+          );
+          client.disconnect();
+          return;
+        }
+      } else {
+        this.logger.log(`Client connected without auth: ${client.id}`);
+      }
+
+      // Join user-specific room if authenticated
+      if (client.user) {
+        client.join(`user_${client.user.sub}`);
+      }
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(
+        `Connection error for client ${client.id}: ${err.message}`,
+      );
+      client.disconnect();
+    }
+  }
+
+  handleDisconnect(client: Socket) {
+    this.logger.log(`Client disconnected: ${client.id}`);
+    // Cleanup logic can be added here
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.JOIN_ROOM)
+  handleJoinRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: JoinRoomPayload,
+  ): WebSocketResponse<JoinedRoomData> {
+    client.join(data.room);
+    this.logger.log(`Client ${client.id} joined room: ${data.room}`);
+    console.log(`Client ${client.id} joined room: ${data.room}`);
+    return {
+      success: true,
+      data: { room: data.room },
+      timestamp: new Date(),
+    };
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.LEAVE_ROOM)
+  handleLeaveRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: LeaveRoomPayload,
+  ): WebSocketResponse<LeftRoomData> {
+    client.leave(data.room);
+    this.logger.log(`Client ${client.id} left room: ${data.room}`);
+    return {
+      success: true,
+      data: { room: data.room },
+      timestamp: new Date(),
+    };
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.SEND_MESSAGE)
+  handleSendMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: SendMessagePayload,
+  ): WebSocketResponse<{ messageId?: string }> {
+    if (!client.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+    }
+
+    const messageData: MessageData = {
+      userId: client.user.sub,
+      message: data.message,
+      type: data.type || 'text',
+      timestamp: new Date(),
+      room: data.room,
+      metadata: data.metadata,
+    };
+
+    // Broadcast to room
+    this.server.to(data.room).emit(WEBSOCKET_EVENTS.MESSAGE, messageData);
+
+    this.logger.log(
+      `Message sent to room ${data.room} by user ${client.user.sub}`,
+    );
+    return {
+      success: true,
+      timestamp: new Date(),
+    };
+  }
+
+  // Method to emit events from other services
+  emitToUser(userId: string, event: string, data: any) {
+    this.server.to(`user_${userId}`).emit(event, data);
+  }
+
+  emitToRoom(room: string, event: string, data: any) {
+    console.log(`Emitting to room ${room} event ${event} with data:`, data);
+    const clientsInRoom = this.server.sockets.adapter.rooms.get(room);
+    console.log(
+      `Clients in room ${room}:`,
+      clientsInRoom ? Array.from(clientsInRoom) : 'None',
+    );
+    this.server.to(room).emit(event, data);
+  }
+
+  // Typed emit methods for better type safety
+  emitToUserTyped<T>(userId: string, event: string, data: T) {
+    this.server.to(`user_${userId}`).emit(event, data);
+  }
+
+  emitToRoomTyped<T>(room: string, event: string, data: T) {
+    this.server.to(room).emit(event, data);
+  }
+
+  // Specific event emitters
+  notifyUser(userId: string, notification: any) {
+    this.emitToUser(userId, WEBSOCKET_EVENTS.NOTIFICATION, notification);
+  }
+
+  broadcastToCommunity(communityId: string, event: string, data: any) {
+    this.emitToRoom(`community_${communityId}`, event, data);
+  }
+}

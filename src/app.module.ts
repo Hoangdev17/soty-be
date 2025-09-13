@@ -5,8 +5,9 @@ import { UsersModule } from './packages/users/users.module';
 import { CommunityModule } from './packages/community/community.module';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './core/auth/auth.module';
-import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { WebsocketModule } from './packages/websocket/websocket.module';
+import { MessageModule } from './packages/message/message.module';
 
 @Module({
   imports: [
@@ -15,6 +16,8 @@ import { PassportModule } from '@nestjs/passport';
     UsersModule,
     CommunityModule,
     AuthModule,
+    WebsocketModule,
+    MessageModule,
   ],
 
   controllers: [AppController],

@@ -31,7 +31,7 @@ export class TokenUtil {
 
   // 🔹 Giải mã token (decode, không verify signature)
   decodeToken<T = any>(token: string): T | null {
-    return this.jwtService.decode(token) as T | null;
+    return this.jwtService.decode(token);
   }
 
   // 🔹 Verify token (kiểm tra chữ ký + hạn)

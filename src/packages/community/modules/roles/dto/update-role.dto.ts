@@ -18,11 +18,12 @@ export class UpdateRoleDto extends createZodDto(UpdateRoleSchema) {
   name?: string;
 
   @ApiProperty({
-    description: 'Quyền của role (dạng string vì bigint)',
-    example: '2199023255552',
+    description: 'Danh sách quyền của role',
+    example: ['VIEW_CHANNEL', 'SEND_MESSAGES'],
+    type: [String],
     required: false,
   })
-  permissions?: string;
+  permissions?: string[];
 
   @ApiProperty({
     description: 'Màu của role (RGB)',
