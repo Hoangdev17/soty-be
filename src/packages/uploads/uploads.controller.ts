@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadsService } from './uploads.service';
 import { ApiConsumes, ApiBody, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -25,6 +33,6 @@ export class UploadsController {
     },
   })
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
-    return (await this.uploadsService.uploadImage(file)).url;
+    return await this.uploadsService.uploadImage(file);
   }
 }

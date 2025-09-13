@@ -154,12 +154,17 @@ export class MembersService {
       return { permissions: 0n, roles: [] };
     }
 
-    // Calculate combined permissions from all roles
-    let combinedPermissions = 0n;
+    // Calculate combined permissions from all roles (String[] format)
+    const combinedPermissions: string[] = [];
     const memberRoles = member.roles.map((r) => r.role);
 
     for (const role of memberRoles) {
-      combinedPermissions |= role.permissions;
+      // Combine permissions arrays
+      role.permissions.forEach((permission) => {
+        if (!combinedPermissions.includes(permission)) {
+          combinedPermissions.push(permission);
+        }
+      });
     }
 
     return {

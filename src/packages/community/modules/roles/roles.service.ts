@@ -25,7 +25,7 @@ export class RolesService {
         id: this.snowflake.generate(),
         name: createRoleDto.name,
         guildId,
-        permissions: BigInt(createRoleDto.permissions),
+        permissions: createRoleDto.permissions,
         color: createRoleDto.color,
         hoist: createRoleDto.hoist,
         mentionable: createRoleDto.mentionable,
@@ -39,7 +39,7 @@ export class RolesService {
 
     if (updateRoleDto.name) updates.name = updateRoleDto.name;
     if (updateRoleDto.permissions)
-      updates.permissions = BigInt(updateRoleDto.permissions);
+      updates.permissions = updateRoleDto.permissions;
     if (updateRoleDto.color !== undefined) updates.color = updateRoleDto.color;
     if (updateRoleDto.hoist !== undefined) updates.hoist = updateRoleDto.hoist;
     if (updateRoleDto.mentionable !== undefined)

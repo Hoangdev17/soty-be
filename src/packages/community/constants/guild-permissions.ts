@@ -76,3 +76,128 @@ export class GuildPermissions {
     return permissions.reduce((acc, perm) => acc | perm, 0n);
   }
 }
+
+// Permission names mapping for String[] format
+export const PERMISSION_NAMES: Record<string, string> = {
+  '1': 'VIEW_CHANNELS',
+  '2': 'SEND_MESSAGES',
+  '4': 'SEND_TTS_MESSAGES',
+  '8': 'MANAGE_MESSAGES',
+  '16': 'EMBED_LINKS',
+  '32': 'ATTACH_FILES',
+  '64': 'READ_MESSAGE_HISTORY',
+  '128': 'MENTION_EVERYONE',
+  '256': 'USE_EXTERNAL_EMOJIS',
+  '512': 'VIEW_GUILD_INSIGHTS',
+  '1024': 'CONNECT',
+  '2048': 'SPEAK',
+  '4096': 'MUTE_MEMBERS',
+  '8192': 'DEAFEN_MEMBERS',
+  '16384': 'MOVE_MEMBERS',
+  '32768': 'USE_VAD',
+  '65536': 'KICK_MEMBERS',
+  '131072': 'BAN_MEMBERS',
+  '262144': 'MANAGE_ROLES',
+  '524288': 'MANAGE_CHANNELS',
+  '1048576': 'MANAGE_GUILD',
+  '2097152': 'ADD_REACTIONS',
+  '4194304': 'VIEW_AUDIT_LOG',
+  '8388608': 'PRIORITY_SPEAKER',
+  '16777216': 'STREAM',
+  '33554432': 'USE_SLASH_COMMANDS',
+  '67108864': 'MANAGE_THREADS',
+  '134217728': 'CREATE_PUBLIC_THREADS',
+  '268435456': 'CREATE_PRIVATE_THREADS',
+  '536870912': 'USE_EXTERNAL_STICKERS',
+  '1073741824': 'SEND_MESSAGES_IN_THREADS',
+  '2147483648': 'USE_EMBEDDED_ACTIVITIES',
+  '4294967296': 'MODERATE_MEMBERS',
+  '8589934592': 'ADMINISTRATOR',
+};
+
+// Reverse mapping for String[] to BigInt conversion
+export const PERMISSION_VALUES: Record<string, bigint> = {};
+Object.entries(PERMISSION_NAMES).forEach(([key, value]) => {
+  PERMISSION_VALUES[value] = BigInt(key);
+});
+
+// Utility functions for permission conversion
+export class PermissionUtils {
+  /**
+   * Convert BigInt permissions to String[] for JSON serialization
+   */
+  static bigIntToStringArray(permissions: bigint): string[] {
+    const result: string[] = [];
+    Object.entries(PERMISSION_NAMES).forEach(([bitValue, name]) => {
+      const bit = BigInt(bitValue);
+      if ((permissions & bit) === bit) {
+        result.push(name);
+      }
+    });
+    return result;
+  }
+
+  /**
+   * Convert String[] permissions to BigInt for bitwise operations
+   */
+  static stringArrayToBigInt(permissions: string[]): bigint {
+    let result = 0n;
+    permissions.forEach((permission) => {
+      const value = PERMISSION_VALUES[permission];
+      if (value) {
+        result |= value;
+      }
+    });
+    return result;
+  }
+
+  /**
+   * Check if user has permission (supports both BigInt and String[])
+   */
+  static hasPermission(
+    userPermissions: bigint | string[],
+    permission: bigint | string,
+  ): boolean {
+    if (typeof userPermissions === 'bigint' && typeof permission === 'bigint') {
+      return GuildPermissions.hasPermission(userPermissions, permission);
+    }
+
+    if (Array.isArray(userPermissions) && typeof permission === 'string') {
+      return userPermissions.includes(permission);
+    }
+
+    // Mixed types - convert to common format
+    if (Array.isArray(userPermissions) && typeof permission === 'bigint') {
+      const permName =
+        PERMISSION_NAMES[
+          permission.toString() as keyof typeof PERMISSION_NAMES
+        ];
+      return permName ? userPermissions.includes(permName) : false;
+    }
+
+    if (typeof userPermissions === 'bigint' && typeof permission === 'string') {
+      const permValue = PERMISSION_VALUES[permission];
+      return permValue
+        ? GuildPermissions.hasPermission(userPermissions, permValue)
+        : false;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get default permissions as String[]
+   */
+  static getDefaultPermissions(): string[] {
+    return this.bigIntToStringArray(
+      GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS,
+    );
+  }
+
+  /**
+   * Validate permission name
+   */
+  static isValidPermission(permission: string): boolean {
+    return permission in PERMISSION_VALUES;
+  }
+}

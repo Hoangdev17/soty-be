@@ -277,7 +277,7 @@ model GuildRole {
   name String
 
   // The permissions of the role 
-  permissions BigInt
+  permissions String[]
 
   // The position of the role in the hierarchy
   position Int? @default(0)
@@ -317,14 +317,14 @@ enum PermissionOverwriteType {
 
 model GuildPermissionOverwrite {
   // The permissions that are allowed for the user or role.
-  allow BigInt
+  allow String[]
 
   // The GuildChannel this overwrite is for
   channelId String
   channel   GuildChannel @relation(fields: [channelId], references: [id])
 
   // The permissions that are denied for the user or role.
-  deny BigInt
+  deny String[]
 
   // The id of the overwrite
   id String @id @map("_id")

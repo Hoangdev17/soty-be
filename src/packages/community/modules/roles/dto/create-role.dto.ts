@@ -9,7 +9,7 @@ export const CreateRoleSchema = z.object({
     .min(1, 'Tên role không được để trống')
     .max(100, 'Tên role không được quá 100 ký tự')
     .describe('Tên của role'),
-  permissions: z.string().describe('Quyền của role (bigint as string)'),
+  permissions: z.array(z.string()).describe('Danh sách quyền của role'),
   color: z
     .number()
     .int()
@@ -32,10 +32,11 @@ export class CreateRoleDto extends createZodDto(CreateRoleSchema) {
   name: string;
 
   @ApiProperty({
-    description: 'Quyền của role (dạng string vì bigint)',
-    example: '2199023255552', // Default everyone permissions
+    description: 'Danh sách quyền của role',
+    example: ['VIEW_CHANNEL', 'SEND_MESSAGES'],
+    type: [String],
   })
-  permissions: string;
+  permissions: string[];
 
   @ApiProperty({
     description: 'Màu của role (RGB)',
