@@ -16,10 +16,9 @@ import { MessageModule } from './packages/message/message.module';
     UsersModule,
     CommunityModule,
     AuthModule,
-    WebsocketModule,
     MessageModule,
+    WebsocketModule,
   ],
-
   controllers: [AppController],
   providers: [AppService],
 })

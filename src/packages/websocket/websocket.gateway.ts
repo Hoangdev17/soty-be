@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { MessageService } from '../message/message.service';
 import { WEBSOCKET_EVENTS } from './websocket-events.types';
 import type {
   JoinRoomPayload,
@@ -45,6 +46,7 @@ export class WebsocketGateway
   constructor(
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
+    private readonly messageService: MessageService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -122,10 +124,10 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage(WEBSOCKET_EVENTS.SEND_MESSAGE)
-  handleSendMessage(
+  async handleSendMessage(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: SendMessagePayload,
-  ): WebSocketResponse<{ messageId?: string }> {
+  ): Promise<WebSocketResponse<{ messageId?: string }>> {
     if (!client.user) {
       return {
         success: false,
@@ -134,24 +136,55 @@ export class WebsocketGateway
       };
     }
 
-    const messageData: MessageData = {
-      content: data.message,
-      type: data.type || 'text',
-      createdAt: new Date(),
-      room: data.room,
-      metadata: data.metadata,
-    };
+    try {
+      // Extract channelId from room name (format: channel_{channelId})
+      const channelId = data.room.replace('channel_', '');
 
-    // Broadcast to room
-    this.server.to(data.room).emit(WEBSOCKET_EVENTS.MESSAGE, messageData);
+      // Create message using MessageService
+      const message = await this.messageService.sendMessage(
+        { content: data.message, channelId },
+        client.user.sub,
+      );
 
-    this.logger.log(
-      `Message sent to room ${data.room} by user ${client.user.sub}`,
-    );
-    return {
-      success: true,
-      timestamp: new Date(),
-    };
+      // Emit to room excluding the sender
+      const messageData: MessageData = {
+        id: message.id,
+        content: message.content,
+        type: data.type || 'text',
+        createdAt: message.createdAt,
+        room: data.room,
+        metadata: {
+          channelId,
+          channelName: message.channelName,
+          author: message.author,
+        },
+        author: {
+          id: message.author.id,
+          username: message.author.username,
+          avatar: message.author.avatar || '',
+        },
+      };
+
+      // Emit to room but exclude the sender
+      this.emitToRoom(data.room, WEBSOCKET_EVENTS.MESSAGE, messageData, client);
+
+      this.logger.log(
+        `Message sent to room ${data.room} by user ${client.user.sub}`,
+      );
+
+      return {
+        success: true,
+        data: { messageId: message.id },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error sending message: ${error.message}`);
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to send message' },
+        timestamp: new Date(),
+      };
+    }
   }
 
   // Method to emit events from other services
@@ -159,14 +192,12 @@ export class WebsocketGateway
     this.server.to(`user_${userId}`).emit(event, data);
   }
 
-  emitToRoom(room: string, event: string, data: any) {
-    console.log(`Emitting to room ${room} event ${event} with data:`, data);
-    const clientsInRoom = this.server.sockets.adapter.rooms.get(room);
-    console.log(
-      `Clients in room ${room}:`,
-      clientsInRoom ? Array.from(clientsInRoom) : 'None',
-    );
-    this.server.to(room).emit(event, data);
+  emitToRoom(room: string, event: string, data: any, excludeClient?: Socket) {
+    if (excludeClient) {
+      excludeClient.to(room).emit(event, data);
+    } else {
+      this.server.to(room).emit(event, data);
+    }
   }
 
   // Typed emit methods for better type safety
@@ -174,8 +205,17 @@ export class WebsocketGateway
     this.server.to(`user_${userId}`).emit(event, data);
   }
 
-  emitToRoomTyped<T>(room: string, event: string, data: T) {
-    this.server.to(room).emit(event, data);
+  emitToRoomTyped<T>(
+    room: string,
+    event: string,
+    data: T,
+    excludeClient?: Socket,
+  ) {
+    if (excludeClient) {
+      excludeClient.to(room).emit(event, data);
+    } else {
+      this.server.to(room).emit(event, data);
+    }
   }
 
   // Specific event emitters

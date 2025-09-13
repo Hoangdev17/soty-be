@@ -2,16 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { SnowflakeID } from 'src/utils/snowflake';
-import { WebsocketGateway } from '../websocket/websocket.gateway';
-import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
-import type { MessageData } from '../websocket/websocket-events.types';
+import id from 'zod/v4/locales/id.js';
 
 @Injectable()
 export class MessageService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly snowflakeID: SnowflakeID,
-    private readonly websocketGateway: WebsocketGateway,
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, authorId: string) {
@@ -42,38 +39,19 @@ export class MessageService {
       },
     });
 
-    // Emit message to WebSocket clients in the channel
-    const messageData: MessageData = {
+    return {
       id: message.id,
       content: message.content,
-      type: 'text',
       createdAt: message.createdAt,
+      type: 'text',
       room: `channel_${channelId}`,
-      metadata: {
-        channelId,
-        channelName: message.channel.name,
-      },
       author: {
         id: message.author.id,
         username: message.author.username,
         avatar: message.author.avatar || '',
       },
-    };
-
-    this.websocketGateway.emitToRoom(
-      `channel_${channelId}`,
-      WEBSOCKET_EVENTS.MESSAGE,
-      messageData,
-    );
-
-    return {
-      content: message.content,
-      createdAt: message.createdAt,
-      author: {
-        id: message.author.id,
-        username: message.author.username,
-        avatar: message.author.avatar,
-      },
+      channelId: message.channel.id,
+      channelName: message.channel.name,
     };
   }
 
