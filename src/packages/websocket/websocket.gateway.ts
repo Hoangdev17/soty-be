@@ -135,10 +135,9 @@ export class WebsocketGateway
     }
 
     const messageData: MessageData = {
-      userId: client.user.sub,
-      message: data.message,
+      content: data.message,
       type: data.type || 'text',
-      timestamp: new Date(),
+      createdAt: new Date(),
       room: data.room,
       metadata: data.metadata,
     };

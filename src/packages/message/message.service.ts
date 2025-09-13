@@ -5,7 +5,6 @@ import { SnowflakeID } from 'src/utils/snowflake';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
 import type { MessageData } from '../websocket/websocket-events.types';
-import id from 'zod/v4/locales/id.js';
 
 @Injectable()
 export class MessageService {
@@ -46,16 +45,18 @@ export class MessageService {
     // Emit message to WebSocket clients in the channel
     const messageData: MessageData = {
       id: message.id,
-      userId: message.authorId,
-      username: message.author.username,
-      message: message.content,
+      content: message.content,
       type: 'text',
-      timestamp: message.createdAt,
+      createdAt: message.createdAt,
       room: `channel_${channelId}`,
       metadata: {
         channelId,
         channelName: message.channel.name,
-        author: message.author,
+      },
+      author: {
+        id: message.author.id,
+        username: message.author.username,
+        avatar: message.author.avatar || '',
       },
     };
 
@@ -64,8 +65,6 @@ export class MessageService {
       WEBSOCKET_EVENTS.MESSAGE,
       messageData,
     );
-
-    console.log(`Đã emit message tới room channel_${channelId}:`, messageData);
 
     return {
       content: message.content,

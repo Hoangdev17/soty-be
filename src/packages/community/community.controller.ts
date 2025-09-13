@@ -130,15 +130,17 @@ export class CommunityController {
     return this.communityService.remove(id);
   }
 
-  @Post(':id/join')
+  @Post(':communityId/join')
   @ApiOperation({ summary: 'Join a community' })
   @ApiResponse({ status: 201, description: 'Joined community successfully' })
   @ApiResponse({ status: 404, description: 'Community not found' })
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
   joinCommunity(
-    @Param('id') communityId: string,
-    @Body() joinDto: JoinCommunityDto,
+    @Param('communityId') communityId: string,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.membersService.joinCommunity(communityId, joinDto.userId);
+    return this.membersService.joinCommunity(communityId, req.user.id);
   }
 
   @Delete(':id/leave')

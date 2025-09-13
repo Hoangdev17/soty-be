@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../core/prisma/prisma.service';
 import { SnowflakeID } from '../../../../utils/snowflake';
 import { GuildPermissions } from '../../constants/guild-permissions';
@@ -20,7 +20,7 @@ export class MembersService {
     });
 
     if (existingMember) {
-      throw new Error('User is already a member of this community');
+      throw new ConflictException('User is already a member of this community');
     }
 
     // Get @everyone role for this guild

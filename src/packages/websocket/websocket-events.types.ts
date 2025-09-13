@@ -62,13 +62,16 @@ export interface SendMessagePayload {
 
 export interface MessageData {
   id?: string;
-  userId: string;
-  username?: string;
-  message: string;
+  content: string;
   type: 'text' | 'image' | 'file' | 'system';
-  timestamp: Date;
+  createdAt: Date;
   room?: string;
   metadata?: Record<string, any>;
+  author?: {
+    id: string;
+    username: string;
+    avatar: string;
+  };
 }
 
 export interface UserOnlineData {
