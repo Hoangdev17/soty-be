@@ -53,6 +53,15 @@ export class MembersService {
         userId,
         permissions: [GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS.toString()],
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+      },
     });
 
     // Assign @everyone role to the new member
