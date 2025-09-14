@@ -34,6 +34,7 @@ import { ChannelsService } from './modules/channels/channels.service';
     RolesModule,
     PermissionsModule,
     MembersModule,
+    ChannelsService,
   ],
 })
 export class CommunityModule {}

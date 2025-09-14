@@ -6,6 +6,7 @@ import { MessageModule } from '../message/message.module';
 import { MessageService } from '../message/message.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { MembersModule } from '../community/modules/members/members.module';
+import { ChannelsModule } from '../community/modules/channels/channels.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MembersModule } from '../community/modules/members/members.module';
     }),
     MessageModule,
     forwardRef(() => MembersModule),
+    ChannelsModule,
   ],
   providers: [WebsocketGateway, PrismaService, MessageService, SnowflakeID],
   exports: [WebsocketGateway],

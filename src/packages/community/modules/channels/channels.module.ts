@@ -8,5 +8,6 @@ import { PermissionsService } from '../permissions/permissions.service';
 @Module({
   providers: [ChannelsService, PrismaService, SnowflakeID, PermissionsService],
   controllers: [ChannelsController],
+  exports: [ChannelsService],
 })
 export class ChannelsModule {}

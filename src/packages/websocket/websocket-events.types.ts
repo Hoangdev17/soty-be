@@ -28,6 +28,10 @@ export const WEBSOCKET_EVENTS = {
   GET_MEMBERS: 'get_members',
   MEMBERS_LIST: 'members_list',
 
+  // Channel events
+  CREATE_CHANNEL: 'create_channel',
+  CHANNEL_CREATED: 'channel_created',
+
   // Notification events
   NOTIFICATION: 'notification',
 
@@ -135,6 +139,40 @@ export interface MembersListData {
   timestamp: Date;
 }
 
+export interface CreateChannelPayload {
+  guildId: string;
+  name: string;
+  nsfw: boolean;
+  topic?: string;
+  position?: number;
+  type: 'GUILD_TEXT' | 'GUILD_VOICE';
+  manageable: boolean;
+  rateLimitPerUser?: number;
+  viewAble?: boolean;
+  recipients?: string[];
+  maxMembers?: number;
+}
+
+export interface ChannelCreatedData {
+  channel: {
+    id: string;
+    name: string;
+    type: string;
+    topic?: string;
+    nsfw: boolean;
+    position: number;
+    manageable: boolean;
+    rateLimitPerUser?: number;
+    viewAble: boolean;
+    recipients?: string[];
+    maxMembers?: number;
+    createdAt: Date;
+  };
+  guildId: string;
+  createdBy: string;
+  timestamp: Date;
+}
+
 export interface RoleUpdateData {
   communityId: string;
   userId: string;
@@ -206,6 +244,7 @@ export interface WebSocketClientEvents {
   [WEBSOCKET_EVENTS.LEAVE_ROOM]: (payload: LeaveRoomPayload) => void;
   [WEBSOCKET_EVENTS.SEND_MESSAGE]: (payload: SendMessagePayload) => void;
   [WEBSOCKET_EVENTS.GET_MEMBERS]: (payload: GetMembersPayload) => void;
+  [WEBSOCKET_EVENTS.CREATE_CHANNEL]: (payload: CreateChannelPayload) => void;
 }
 
 // Server-side event emitters
@@ -220,6 +259,7 @@ export interface WebSocketServerEvents {
   [WEBSOCKET_EVENTS.MEMBER_LEFT]: (data: MemberEventData) => void;
   [WEBSOCKET_EVENTS.ROLE_UPDATED]: (data: RoleUpdateData) => void;
   [WEBSOCKET_EVENTS.MEMBERS_LIST]: (data: MembersListData) => void;
+  [WEBSOCKET_EVENTS.CHANNEL_CREATED]: (data: ChannelCreatedData) => void;
   [WEBSOCKET_EVENTS.NOTIFICATION]: (data: NotificationData) => void;
   [WEBSOCKET_EVENTS.ERROR]: (data: ErrorData) => void;
 }

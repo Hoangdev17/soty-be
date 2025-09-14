@@ -168,10 +168,7 @@ export class PermissionUtils {
 
     // Mixed types - convert to common format
     if (Array.isArray(userPermissions) && typeof permission === 'bigint') {
-      const permName =
-        PERMISSION_NAMES[
-          permission.toString() as keyof typeof PERMISSION_NAMES
-        ];
+      const permName = PERMISSION_NAMES[permission.toString()];
       return permName ? userPermissions.includes(permName) : false;
     }
 

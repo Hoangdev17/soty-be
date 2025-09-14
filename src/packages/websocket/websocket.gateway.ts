@@ -13,6 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { MessageService } from '../message/message.service';
 import { MembersService } from '../community/modules/members/members.service';
+import { ChannelsService } from '../community/modules/channels/channels.service';
 import { WEBSOCKET_EVENTS } from './websocket-events.types';
 import type {
   JoinRoomPayload,
@@ -26,6 +27,8 @@ import type {
   GetMembersPayload,
   MembersListData,
   MemberEventData,
+  CreateChannelPayload,
+  ChannelCreatedData,
 } from './websocket-events.types';
 
 declare module 'socket.io' {
@@ -53,6 +56,8 @@ export class WebsocketGateway
     private readonly messageService: MessageService,
     @Inject(forwardRef(() => MembersService))
     private readonly membersService: MembersService,
+    @Inject(forwardRef(() => ChannelsService))
+    private readonly channelsService: ChannelsService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -298,7 +303,78 @@ export class WebsocketGateway
     }
   }
 
-  // Method to emit events from other services
+  @SubscribeMessage(WEBSOCKET_EVENTS.CREATE_CHANNEL)
+  async handleCreateChannel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: CreateChannelPayload,
+  ): Promise<WebSocketResponse<{ channelId?: string }>> {
+    if (!client.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      // Create the channel using ChannelsService
+      const createData = {
+        ...data,
+        position: data.position ?? 0,
+        viewAble: data.viewAble ?? true,
+      };
+      const channel = await this.channelsService.createChannel(
+        data.guildId,
+        createData,
+      );
+
+      this.logger.log(
+        `Channel ${channel.name} created in guild ${data.guildId} by user ${client.user.sub}`,
+      );
+
+      // Emit the channel creation to all clients in the community
+      const channelData: ChannelCreatedData = {
+        channel: {
+          id: channel.id,
+          name: channel.name,
+          type: channel.type,
+          topic: channel.topic || undefined,
+          nsfw: channel.nsfw,
+          position: channel.position || 0,
+          manageable: channel.manageable,
+          rateLimitPerUser: channel.rateLimitPerUser || undefined,
+          viewAble: channel.viewAble,
+          recipients: channel.recipients || undefined,
+          maxMembers: channel.maxMembers || undefined,
+          createdAt: channel.createdAt,
+        },
+        guildId: data.guildId,
+        createdBy: client.user.sub,
+        timestamp: new Date(),
+      };
+
+      this.broadcastToCommunity(
+        data.guildId,
+        WEBSOCKET_EVENTS.CHANNEL_CREATED,
+        channelData,
+      );
+
+      return {
+        success: true,
+        data: { channelId: channel.id },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error creating channel: ${error.message}`);
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to create channel' },
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  // Method to emit events from othyer services
   emitToUser(userId: string, event: string, data: any) {
     this.server.to(`user_${userId}`).emit(event, data);
   }
