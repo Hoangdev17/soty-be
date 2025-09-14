@@ -61,7 +61,7 @@ export class MessageService {
 
     return await this.prismaService.guildMessage.findMany({
       where: { channelId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
       take: limitNum,
       skip: offsetNum,
       select: {

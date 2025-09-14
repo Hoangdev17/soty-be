@@ -144,11 +144,37 @@ export class WebsocketGateway
       // Extract channelId from room name (format: channel_{channelId})
       const channelId = data.room.replace('channel_', '');
 
-      // Create message using MessageService
-      const message = await this.messageService.sendMessage(
-        { content: data.message, channelId },
-        client.user.sub,
-      );
+      // Check if message already exists to avoid duplicates
+      const existingMessage = await this.prismaService.guildMessage.findFirst({
+        where: {
+          content: data.message,
+          channelId: channelId,
+          authorId: client.user.sub,
+          createdAt: {
+            gte: new Date(Date.now() - 5000), // Within last 5 seconds
+          },
+        },
+        include: {
+          author: true,
+          channel: true,
+        },
+      });
+
+      let message;
+      if (existingMessage) {
+        // Use existing message
+        message = existingMessage;
+        this.logger.log(
+          `Using existing message ${message.id} to avoid duplicate`,
+        );
+      } else {
+        // Create new message using MessageService
+        message = await this.messageService.sendMessage(
+          { content: data.message, channelId },
+          client.user.sub,
+        );
+        this.logger.log(`Created new message ${message.id}`);
+      }
 
       // Emit to room excluding the sender
       const messageData: MessageData = {
