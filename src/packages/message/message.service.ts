@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { SnowflakeID } from 'src/utils/snowflake';
-import id from 'zod/v4/locales/id.js';
 
 @Injectable()
 export class MessageService {
