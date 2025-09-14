@@ -25,6 +25,8 @@ export const WEBSOCKET_EVENTS = {
   MEMBER_JOINED: 'member_joined',
   MEMBER_LEFT: 'member_left',
   ROLE_UPDATED: 'role_updated',
+  GET_MEMBERS: 'get_members',
+  MEMBERS_LIST: 'members_list',
 
   // Notification events
   NOTIFICATION: 'notification',
@@ -104,6 +106,35 @@ export interface MemberEventData {
   timestamp: Date;
 }
 
+export interface GetMembersPayload {
+  communityId: string;
+}
+
+export interface MemberData {
+  id: string;
+  userId: string;
+  user: {
+    id: string;
+    username: string;
+    globalName: string | null;
+    avatar: string | null;
+  };
+  roles: {
+    role: {
+      id: string;
+      name: string;
+      permissions: string[];
+      // Add other fields if needed
+    };
+  }[];
+}
+
+export interface MembersListData {
+  members: MemberData[];
+  requestedBy?: string;
+  timestamp: Date;
+}
+
 export interface RoleUpdateData {
   communityId: string;
   userId: string;
@@ -174,6 +205,7 @@ export interface WebSocketClientEvents {
   [WEBSOCKET_EVENTS.JOIN_ROOM]: (payload: JoinRoomPayload) => void;
   [WEBSOCKET_EVENTS.LEAVE_ROOM]: (payload: LeaveRoomPayload) => void;
   [WEBSOCKET_EVENTS.SEND_MESSAGE]: (payload: SendMessagePayload) => void;
+  [WEBSOCKET_EVENTS.GET_MEMBERS]: (payload: GetMembersPayload) => void;
 }
 
 // Server-side event emitters
@@ -187,6 +219,7 @@ export interface WebSocketServerEvents {
   [WEBSOCKET_EVENTS.MEMBER_JOINED]: (data: MemberEventData) => void;
   [WEBSOCKET_EVENTS.MEMBER_LEFT]: (data: MemberEventData) => void;
   [WEBSOCKET_EVENTS.ROLE_UPDATED]: (data: RoleUpdateData) => void;
+  [WEBSOCKET_EVENTS.MEMBERS_LIST]: (data: MembersListData) => void;
   [WEBSOCKET_EVENTS.NOTIFICATION]: (data: NotificationData) => void;
   [WEBSOCKET_EVENTS.ERROR]: (data: ErrorData) => void;
 }

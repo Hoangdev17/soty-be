@@ -1,13 +1,22 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../../../../core/prisma/prisma.service';
 import { SnowflakeID } from '../../../../utils/snowflake';
 import { GuildPermissions } from '../../constants/guild-permissions';
+import { WebsocketGateway } from '../../../websocket/websocket.gateway';
+import { WEBSOCKET_EVENTS } from '../../../websocket/websocket-events.types';
 
 @Injectable()
 export class MembersService {
   constructor(
     private prisma: PrismaService,
     private snowflake: SnowflakeID,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private websocketGateway: WebsocketGateway,
   ) {}
 
   async joinCommunity(communityId: string, userId: string) {
@@ -77,12 +86,18 @@ export class MembersService {
       },
       include: {
         roles: true,
+        user: {
+          select: { username: true },
+        },
       },
     });
 
     if (!member) {
       throw new Error('User is not a member of this community');
     }
+
+    // Get username for emission
+    const username = member.user.username;
 
     // Remove member roles first
     await this.prisma.guildMemberRole.deleteMany({
@@ -109,6 +124,30 @@ export class MembersService {
           },
         },
       });
+
+      // Emit member left event
+      this.websocketGateway.broadcastToCommunity(
+        communityId,
+        WEBSOCKET_EVENTS.MEMBER_LEFT,
+        {
+          communityId,
+          userId,
+          username,
+          timestamp: new Date(),
+        },
+      );
+
+      // Also emit updated members list
+      const updatedMembers = await this.getCommunityMembers(communityId);
+      this.websocketGateway.broadcastToCommunity(
+        communityId,
+        WEBSOCKET_EVENTS.MEMBERS_LIST,
+        {
+          members: updatedMembers,
+          requestedBy: userId,
+          timestamp: new Date(),
+        },
+      );
     }
 
     return result;

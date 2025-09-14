@@ -8,10 +8,11 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { MessageService } from '../message/message.service';
+import { MembersService } from '../community/modules/members/members.service';
 import { WEBSOCKET_EVENTS } from './websocket-events.types';
 import type {
   JoinRoomPayload,
@@ -22,6 +23,9 @@ import type {
   MessageData,
   AuthenticatedUser,
   WebSocketResponse,
+  GetMembersPayload,
+  MembersListData,
+  MemberEventData,
 } from './websocket-events.types';
 
 declare module 'socket.io' {
@@ -47,6 +51,8 @@ export class WebsocketGateway
     private readonly jwtService: JwtService,
     private readonly prismaService: PrismaService,
     private readonly messageService: MessageService,
+    @Inject(forwardRef(() => MembersService))
+    private readonly membersService: MembersService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -63,7 +69,6 @@ export class WebsocketGateway
           this.logger.log(
             `Client connected: ${client.id}, User: ${payload.sub}`,
           );
-          console.log(`Client connected: ${client.id}, User: ${payload.sub}`);
         } catch (error) {
           const err = error as Error;
           this.logger.error(
@@ -101,7 +106,6 @@ export class WebsocketGateway
   ): WebSocketResponse<JoinedRoomData> {
     client.join(data.room);
     this.logger.log(`Client ${client.id} joined room: ${data.room}`);
-    console.log(`Client ${client.id} joined room: ${data.room}`);
     return {
       success: true,
       data: { room: data.room },
@@ -184,6 +188,87 @@ export class WebsocketGateway
         error: { code: 'INTERNAL_ERROR', message: 'Failed to send message' },
         timestamp: new Date(),
       };
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.GET_MEMBERS)
+  async handleGetMembers(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: GetMembersPayload,
+  ): Promise<WebSocketResponse<MembersListData>> {
+    if (!client.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      const members = await this.membersService.getCommunityMembers(
+        data.communityId,
+      );
+
+      this.logger.log(
+        `Members retrieved for community ${data.communityId} by user ${client.user.sub}`,
+      );
+
+      // Emit members list to all clients in the community
+      this.broadcastToCommunity(
+        data.communityId,
+        WEBSOCKET_EVENTS.MEMBERS_LIST,
+        {
+          members,
+          requestedBy: client.user.sub,
+          timestamp: new Date(),
+        },
+      );
+
+      return {
+        success: true,
+        data: { members, timestamp: new Date() },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error getting members: ${error.message}`);
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to get members' },
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.MEMBER_JOINED)
+  async handleMemberJoined(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: MemberEventData,
+  ): Promise<void> {
+    // When a member joins, emit the updated members list to all clients in the community
+    try {
+      const members = await this.membersService.joinCommunity(
+        data.communityId,
+        data.userId,
+      );
+
+      this.logger.log(
+        `Member ${data.userId} joined community ${data.communityId}, updating member list`,
+      );
+
+      this.broadcastToCommunity(
+        data.communityId,
+        WEBSOCKET_EVENTS.MEMBER_JOINED,
+        {
+          members,
+          communityId: data.communityId,
+          joinedBy: data.userId,
+          timestamp: new Date(),
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error updating members list after join: ${error.message}`,
+      );
     }
   }
 
