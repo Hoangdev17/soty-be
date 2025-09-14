@@ -24,10 +24,7 @@ export const CreateCommunitySchema = z.object({
     .url('Banner phải là URL hợp lệ')
     .optional()
     .describe('URL ảnh banner của community'),
-  isPrivate: z
-    .boolean()
-    .default(false)
-    .describe('Community có riêng tư hay không'),
+  isPrivate: z.boolean().describe('Community có riêng tư hay không'),
 });
 
 // ========== DTO ==========
