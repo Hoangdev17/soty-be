@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../core/prisma/prisma.service';
+import { CacheService } from '../../../../core/cache/cache.service';
 import { SnowflakeID } from '../../../../utils/snowflake';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -9,6 +10,7 @@ export class RolesService {
   constructor(
     private prisma: PrismaService,
     private snowflake: SnowflakeID,
+    private cacheService: CacheService,
   ) {}
 
   async createRole(guildId: string, createRoleDto: CreateRoleDto) {
@@ -20,7 +22,7 @@ export class RolesService {
 
     const newPosition = (highestRole?.position || 0) + 1;
 
-    return this.prisma.guildRole.create({
+    const role = await this.prisma.guildRole.create({
       data: {
         id: this.snowflake.generate(),
         name: createRoleDto.name,
@@ -32,6 +34,11 @@ export class RolesService {
         position: newPosition,
       },
     });
+
+    // Clear related cache
+    await this.cacheService.del(`roles:guild:${guildId}`);
+
+    return role;
   }
 
   async updateRole(roleId: string, updateRoleDto: UpdateRoleDto) {
@@ -45,10 +52,16 @@ export class RolesService {
     if (updateRoleDto.mentionable !== undefined)
       updates.mentionable = updateRoleDto.mentionable;
 
-    return this.prisma.guildRole.update({
+    const role = await this.prisma.guildRole.update({
       where: { id: roleId },
       data: updates,
     });
+
+    // Clear related cache
+    await this.cacheService.del(`role:${roleId}`);
+    await this.cacheService.del(`roles:guild:${role.guildId}`);
+
+    return role;
   }
 
   async deleteRole(roleId: string) {
@@ -67,13 +80,27 @@ export class RolesService {
     });
 
     // Delete the role
-    return this.prisma.guildRole.delete({
+    const deletedRole = await this.prisma.guildRole.delete({
       where: { id: roleId },
     });
+
+    // Clear related cache
+    await this.cacheService.del(`role:${roleId}`);
+    if (role) {
+      await this.cacheService.del(`roles:guild:${role.guildId}`);
+    }
+
+    return deletedRole;
   }
 
   async getGuildRoles(guildId: string) {
-    return this.prisma.guildRole.findMany({
+    const cacheKey = `roles:guild:${guildId}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const roles = await this.prisma.guildRole.findMany({
       where: { guildId },
       orderBy: { position: 'desc' },
       include: {
@@ -95,6 +122,10 @@ export class RolesService {
         },
       },
     });
+
+    // Cache for 5 minutes
+    await this.cacheService.set(cacheKey, roles, 300);
+    return roles;
   }
 
   async assignRoleToMember(memberId: string, roleId: string) {
@@ -110,13 +141,25 @@ export class RolesService {
       throw new Error('Member already has this role');
     }
 
-    return this.prisma.guildMemberRole.create({
+    const assignment = await this.prisma.guildMemberRole.create({
       data: {
         id: this.snowflake.generate(),
         memberId,
         roleId,
       },
     });
+
+    // Clear permission cache for this member
+    const member = await this.prisma.guildMember.findUnique({
+      where: { id: memberId },
+    });
+    if (member) {
+      await this.cacheService.del(
+        `community:${member.guildId}:user:${member.userId}:permissions`,
+      );
+    }
+
+    return assignment;
   }
 
   async removeRoleFromMember(memberId: string, roleId: string) {
@@ -129,16 +172,34 @@ export class RolesService {
       throw new Error('Cannot remove @everyone role from member');
     }
 
-    return this.prisma.guildMemberRole.deleteMany({
+    const result = await this.prisma.guildMemberRole.deleteMany({
       where: {
         memberId,
         roleId,
       },
     });
+
+    // Clear permission cache for this member
+    const member = await this.prisma.guildMember.findUnique({
+      where: { id: memberId },
+    });
+    if (member) {
+      await this.cacheService.del(
+        `community:${member.guildId}:user:${member.userId}:permissions`,
+      );
+    }
+
+    return result;
   }
 
   async getRoleById(roleId: string) {
-    return this.prisma.guildRole.findUnique({
+    const cacheKey = `role:${roleId}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const role = await this.prisma.guildRole.findUnique({
       where: { id: roleId },
       include: {
         members: {
@@ -159,9 +220,22 @@ export class RolesService {
         },
       },
     });
+
+    if (role) {
+      // Cache for 5 minutes
+      await this.cacheService.set(cacheKey, role, 300);
+    }
+
+    return role;
   }
 
   async getMemberRoles(guildId: string, userId: string) {
+    const cacheKey = `member:${guildId}:${userId}:roles`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
     const member = await this.prisma.guildMember.findFirst({
       where: {
         guildId,
@@ -176,6 +250,10 @@ export class RolesService {
       },
     });
 
-    return member?.roles.map((r) => r.role) || [];
+    const roles = member?.roles.map((r) => r.role) || [];
+
+    // Cache for 3 minutes
+    await this.cacheService.set(cacheKey, roles, 180);
+    return roles;
   }
 }

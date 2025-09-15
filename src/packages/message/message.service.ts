@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
+import { CacheService } from 'src/core/cache/cache.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { SnowflakeID } from 'src/utils/snowflake';
 
@@ -8,6 +9,7 @@ export class MessageService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly snowflakeID: SnowflakeID,
+    private readonly cacheService: CacheService,
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, authorId: string) {
@@ -38,6 +40,10 @@ export class MessageService {
       },
     });
 
+    // Clear messages cache for this channel
+    const pattern = `messages:channel:${channelId}:*`;
+    await this.clearChannelMessagesCache(channelId);
+
     return {
       id: message.id,
       content: message.content,
@@ -58,7 +64,13 @@ export class MessageService {
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
 
-    return await this.prismaService.guildMessage.findMany({
+    const cacheKey = `messages:channel:${channelId}:limit:${limitNum}:offset:${offsetNum}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const messages = await this.prismaService.guildMessage.findMany({
       where: { channelId },
       orderBy: { createdAt: 'asc' },
       take: limitNum,
@@ -72,5 +84,29 @@ export class MessageService {
         },
       },
     });
+
+    // Cache for 1 minute
+    await this.cacheService.set(cacheKey, messages, 60);
+    return messages;
+  }
+
+  private async clearChannelMessagesCache(channelId: string) {
+    // Clear all cached messages for this channel
+    // Since Redis doesn't support pattern deletion natively, we'll use a simple approach
+    const keys = [
+      `messages:channel:${channelId}:recent`,
+      `messages:channel:${channelId}:count`,
+    ];
+
+    // Clear common pagination combinations
+    for (let limit = 10; limit <= 100; limit += 10) {
+      for (let offset = 0; offset <= 500; offset += 50) {
+        keys.push(
+          `messages:channel:${channelId}:limit:${limit}:offset:${offset}`,
+        );
+      }
+    }
+
+    await Promise.all(keys.map((key) => this.cacheService.del(key)));
   }
 }

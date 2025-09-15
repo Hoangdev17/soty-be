@@ -1,0 +1,59 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    container_name: soty-be
+    volumes:
+      - ..:/workspace:cached
+      - /workspace/node_modules
+    working_dir: /workspace
+    command: sleep infinity
+    environment:
+      DATABASE_URL: ${DB_MONGO_URI:-mongodb://mongo:27017/dev}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-yourRedisPassword123}
+      USER_CACHE_TTL: ${USER_CACHE_TTL:-3600}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-yourSuperSecretKey123}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-3600s}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - dev-network
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: dev
+    networks:
+      - dev-network
+
+  redis:
+    image: redis:7-alpine
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--requirepass',
+        '${REDIS_PASSWORD:-yourRedisPassword123}',
+      ]
+    volumes:
+      - redis_data:/data
+    networks:
+      - dev-network
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  dev-network:
+    driver: bridge

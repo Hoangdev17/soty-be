@@ -127,5 +127,6 @@ model User {
   UserSubscription UserSubscription[]
   Payment Payment[] 
   
+  @@index([id, email])
   @@map("user")  
 }

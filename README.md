@@ -11,7 +11,7 @@ Nền tảng kết hợp tính năng **chat real-time, news feed và short video
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | **[NestJS](https://nestjs.com/)**                                                                       | Node.js framework hiện đại với TypeScript |
 | **[Prisma](https://www.prisma.io/)**                                                                    | ORM type-safe cho PostgreSQL              |
-| **[MongoDB](https://www.mongo.org/)**                                                           | Hệ quản trị cơ sở dữ liệu chính           |
+| **[MongoDB](https://www.mongo.org/)**                                                                   | Hệ quản trị cơ sở dữ liệu chính           |
 | **[Redis](https://redis.io/)**                                                                          | Cache, Pub/Sub và message queue           |
 | **[Socket.IO](https://socket.io/)** / **WebRTC**                                                        | Giao tiếp real-time                       |
 | **[AWS S3](https://aws.amazon.com/s3/)** / **[Cloudflare R2](https://www.cloudflare.com/products/r2/)** | Lưu trữ media (ảnh, video)                |
@@ -33,7 +33,6 @@ src/
 │   ├── video/              # Short video & streaming
 │   └── notification/       # Hệ thống thông báo
 ├── common/                 # Shared components
-│   ├── guards/             # Authentication guards
 │   ├── decorators/         # Custom decorators
 │   ├── filters/            # Exception filters
 │   ├── interceptors/       # Response interceptors
@@ -70,7 +69,7 @@ yarn install
 
 Tạo file `.env` trong thư mục gốc:
 
-```env
+````env
 # Database
 DATABASE_URL="postgresql://username:password@localhost:5432/social_platform"
 
@@ -85,20 +84,43 @@ REDIS_PASSWORD=""
 
 # AWS S3 / Cloudflare R2
 AWS_ACCESS_KEY_ID="your-access-key"
+
+## Caching (Redis)
+
+This project can use Redis to cache user lookups for faster responses. The users package is wired to Nest's CacheModule using `cache-manager-ioredis`.
+
+Environment variables:
+- `REDIS_HOST` (default: `127.0.0.1`)
+- `REDIS_PORT` (default: `6379`)
+- `USER_CACHE_TTL` cache TTL in seconds for user entries (default: `60`)
+
+Install required packages and then restart the app:
+
+```bash
+npm install
+# or
+yarn
+````
+
+If Redis is not available, cache calls are best-effort and will not block user requests.
+
 AWS_SECRET_ACCESS_KEY="your-secret-key"
 AWS_REGION="us-east-1"
 AWS_BUCKET_NAME="your-bucket-name"
 
 # OAuth
+
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 FACEBOOK_APP_ID="your-facebook-app-id"
 FACEBOOK_APP_SECRET="your-facebook-app-secret"
 
 # Other
+
 PORT=3000
 NODE_ENV="development"
-```
+
+````
 
 ### 4. **Thiết lập cơ sở dữ liệu**
 
@@ -115,7 +137,7 @@ npm run start:dev
 # Production
 npm run build
 npm run start:prod
-```
+````
 
 ---
 

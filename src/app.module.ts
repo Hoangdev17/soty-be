@@ -8,11 +8,12 @@ import { AuthModule } from './core/auth/auth.module';
 import { PassportModule } from '@nestjs/passport';
 import { WebsocketModule } from './packages/websocket/websocket.module';
 import { MessageModule } from './packages/message/message.module';
-import { MembersModule } from './packages/community/modules/members/members.module';
+import { CoreCacheModule } from './core/cache/cache.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
+    CoreCacheModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     UsersModule,
     CommunityModule,

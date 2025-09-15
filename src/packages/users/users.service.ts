@@ -27,13 +27,15 @@ export class UsersService {
       throw new BadRequestException('Username hoặc email đã tồn tại');
     }
 
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         id: this.snowFlakeId.generate(),
         ...dto,
-        passwordHash: dto.passwordHash, // Ghi đè passwordHash bằng mật khẩu đã hash
+        passwordHash: dto.passwordHash,
       },
     });
+
+    return user;
   }
 
   async updateUser(userId: string, dto: UpdateUserDto) {
@@ -43,15 +45,20 @@ export class UsersService {
       throw new NotFoundException('Người dùng không tồn tại');
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { ...dto },
     });
+    // no cache here; auth layer will handle caching
+    return updated;
   }
 
   async findById(userId: string) {
+    const key = `user:id:${userId}`;
+    // no cache at this layer
+
     const user = await this.prisma.user.findUnique({
-      where: { id: userId, deleted: false },
+      where: { id: userId, deleted: false } as any,
     });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
@@ -60,8 +67,11 @@ export class UsersService {
   }
 
   async findByEmail(email: string) {
+    const key = `user:email:${email}`;
+    // no cache at this layer
+
     const user = await this.prisma.user.findUnique({
-      where: { email, deleted: false },
+      where: { email, deleted: false } as any,
     });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
@@ -70,8 +80,11 @@ export class UsersService {
   }
 
   async findByUsername(username: string) {
+    const key = `user:username:${username}`;
+    // no cache at this layer
+
     const user = await this.prisma.user.findUnique({
-      where: { username, deleted: false },
+      where: { username, deleted: false } as any,
     });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
@@ -90,12 +103,22 @@ export class UsersService {
       );
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         deleted: true,
         deletedAt: new Date(),
       },
     });
+    // no cache at this layer
+    return updated;
+  }
+
+  // Remove sensitive fields before caching
+  private sanitizeForCache(user: any) {
+    if (!user) return user;
+    const { passwordHash, refreshTokenHash, ...safe } = user as any;
+    // Optionally remove other heavy or sensitive fields
+    return safe;
   }
 }

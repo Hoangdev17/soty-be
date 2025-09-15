@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { CacheService } from '../../core/cache/cache.service';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { SnowflakeID } from '../../utils/snowflake';
 import { UpdateCommunityDto } from './dto/update-community.dto';
@@ -13,6 +14,7 @@ export class CommunityService {
   constructor(
     private prisma: PrismaService,
     private snowflake: SnowflakeID,
+    private cacheService: CacheService,
   ) {}
 
   async create(createCommunityDto: CreateCommunityDto, userId: string) {
@@ -87,11 +89,22 @@ export class CommunityService {
       },
     });
 
+    // Clear related cache after creating new community
+    await this.cacheService.del('communities:all');
+    await this.cacheService.del(`user:${userId}:communities`);
+
     return guild;
   }
 
   async findAll() {
-    return this.prisma.guild.findMany({
+    const cacheKey = 'communities:all';
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    // Fetch from database
+    const communities = await this.prisma.guild.findMany({
       include: {
         members: {
           include: {
@@ -115,9 +128,19 @@ export class CommunityService {
         },
       },
     });
+
+    // Cache for 10 minutes
+    await this.cacheService.set(cacheKey, communities, 600);
+    return communities;
   }
 
   async findOne(id: string) {
+    const cacheKey = `community:${id}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
     const guild = await this.prisma.guild.findUnique({
       where: { id },
       include: {
@@ -155,11 +178,16 @@ export class CommunityService {
 
     if (!guild) return null;
 
-    // Permissions are already String[] in the schema, no conversion needed
+    // Cache for 5 minutes
+    await this.cacheService.set(cacheKey, guild, 300);
     return guild;
   }
 
   async update(id: string, updateCommunityDto: UpdateCommunityDto) {
+    // Clear related cache
+    await this.cacheService.del(`community:${id}`);
+    await this.cacheService.del('communities:all');
+
     return this.prisma.guild.update({
       where: { id },
       data: { ...updateCommunityDto },
@@ -167,6 +195,10 @@ export class CommunityService {
   }
 
   async remove(id: string) {
+    // Clear related cache
+    await this.cacheService.del(`community:${id}`);
+    await this.cacheService.del('communities:all');
+
     return this.prisma.guild.delete({
       where: { id },
     });
@@ -227,6 +259,11 @@ export class CommunityService {
       },
     });
 
+    // Clear related cache
+    await this.cacheService.del(`community:${communityId}`);
+    await this.cacheService.del(`community:${communityId}:members`);
+    await this.cacheService.del(`user:${userId}:communities`);
+
     return member;
   }
 
@@ -273,11 +310,25 @@ export class CommunityService {
       });
     }
 
+    // Clear related cache
+    await this.cacheService.del(`community:${communityId}`);
+    await this.cacheService.del(`community:${communityId}:members`);
+    await this.cacheService.del(`user:${userId}:communities`);
+    await this.cacheService.del(
+      `community:${communityId}:user:${userId}:permissions`,
+    );
+
     return result;
   }
 
   async getCommunityMembers(communityId: string) {
-    return this.prisma.guildMember.findMany({
+    const cacheKey = `community:${communityId}:members`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const members = await this.prisma.guildMember.findMany({
       where: { guildId: communityId },
       include: {
         user: {
@@ -290,6 +341,10 @@ export class CommunityService {
         },
       },
     });
+
+    // Cache for 3 minutes
+    await this.cacheService.set(cacheKey, members, 180);
+    return members;
   }
 
   async getCommunitiesByOwner(ownerId: string) {
@@ -302,7 +357,13 @@ export class CommunityService {
   }
 
   async searchCommunities(query: string) {
-    return this.prisma.guild.findMany({
+    const cacheKey = `communities:search:${query.toLowerCase()}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const communities = await this.prisma.guild.findMany({
       where: {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
@@ -321,9 +382,19 @@ export class CommunityService {
         },
       },
     });
+
+    // Cache for 3 minutes
+    await this.cacheService.set(cacheKey, communities, 180);
+    return communities;
   }
 
   async getMemberPermissions(guildId: string, userId: string) {
+    const cacheKey = `community:${guildId}:user:${userId}:permissions`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
     const member = await this.prisma.guildMember.findFirst({
       where: {
         guildId,
@@ -355,15 +426,25 @@ export class CommunityService {
       });
     }
 
-    return {
+    const result = {
       permissions: combinedPermissions,
       roles: memberRoles,
       member,
     };
+
+    // Cache for 2 minutes (short TTL for permissions)
+    await this.cacheService.set(cacheKey, result, 120);
+    return result;
   }
 
   async getUserCommunities(userId: string) {
-    return this.prisma.guild.findMany({
+    const cacheKey = `user:${userId}:communities`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const communities = await this.prisma.guild.findMany({
       where: {
         OR: [
           {
@@ -401,5 +482,9 @@ export class CommunityService {
         },
       },
     });
+
+    // Cache for 5 minutes
+    await this.cacheService.set(cacheKey, communities, 300);
+    return communities;
   }
 }

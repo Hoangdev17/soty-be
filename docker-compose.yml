@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   mongo:
     image: mongo:7
@@ -9,16 +8,63 @@ services:
       MONGO_INITDB_DATABASE: mydb
     volumes:
       - mongo_data:/data/db
+    networks:
+      - app-network
 
-  app:
-    build: .
-    container_name: nestjs-app
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: soty-be
     ports:
       - '3000:3000'
     depends_on:
       - mongo
+      - redis
     environment:
-      DATABASE_URL: mongodb+srv://hoangluudev17_db_user:2BrOmQKsN1tlRvj7@soty.xjhjgrw.mongodb.net/dev?retryWrites=true&w=majority&appName=soty
+      DATABASE_URL: ${DB_MONGO_URI}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      USER_CACHE_TTL: ${USER_CACHE_TTL}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+    volumes:
+      - .:/workspace:cached
+      - /workspace/node_modules
+    working_dir: /workspace
+    command: ['npm', 'run', 'start:dev']
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: soty-redis
+    ports:
+      - '6379:6379'
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--appendfsync',
+        'everysec',
+        '--requirepass',
+        '${REDIS_PASSWORD}',
+      ]
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
 
 volumes:
   mongo_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

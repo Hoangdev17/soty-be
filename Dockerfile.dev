@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+# Install git and bash for dev container features
+RUN apk add --no-cache git bash
+
+# Use root for development to avoid permission issues
+WORKDIR /workspace
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Generate Prisma Client
+RUN npm run prisma:generate
+
+EXPOSE 3000
+
+# Default command for development
+CMD ["npm", "run", "start:dev"]
