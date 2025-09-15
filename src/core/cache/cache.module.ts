@@ -4,43 +4,72 @@ import { CacheService } from './cache.service';
 
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
+const redisUrl = process.env.REDIS_URL;
 const redisHost = process.env.REDIS_HOST || '127.0.0.1';
 const redisPort = Number(process.env.REDIS_PORT) || 6379;
 const redisPassword = process.env.REDIS_PASSWORD;
-const redisClient = new Redis({
-  host: redisHost,
-  port: redisPort,
-  password: redisPassword || undefined,
-  // Connection tuning
-  connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT) || 10000,
-  // retry strategy in ms (called with number of attempts)
-  retryStrategy: (times: number) => Math.min(times * 100, 2000),
-  // Reconnect on certain errors
-  reconnectOnError: (err) => {
-    // return true to reconnect for transient errors
-    return true;
-  },
-});
 
-// Attach listeners to avoid unhandled 'error' events and to provide diagnostics.
-redisClient.on('error', (err) => {
-  // Do not throw here; log for diagnostics. If Redis host is wrong (e.g., 'soty-redis'),
-  // you'll see DNS/connect errors here. Check REDIS_HOST/REDIS_PORT or docker-compose.
-  // eslint-disable-next-line no-console
-  console.warn('[ioredis] error', err && err.message ? err.message : err);
-});
-redisClient.on('connect', () => {
-  // eslint-disable-next-line no-console
-  console.log('[ioredis] connecting to', `${redisHost}:${redisPort}`);
-});
-redisClient.on('ready', () => {
-  // eslint-disable-next-line no-console
-  console.log('[ioredis] ready');
-});
-redisClient.on('close', () => {
-  // eslint-disable-next-line no-console
-  console.log('[ioredis] connection closed');
-});
+// Check if Redis is available in environment
+// Priority: REDIS_URL > REDIS_HOST + REDIS_PORT
+const isRedisEnabled =
+  redisUrl || (process.env.REDIS_HOST && process.env.REDIS_HOST !== '');
+
+let redisClient: Redis | null = null;
+
+if (isRedisEnabled) {
+  const redisOptions = {
+    // Connection tuning
+    connectTimeout: Number(process.env.REDIS_CONNECT_TIMEOUT) || 10000,
+    // retry strategy in ms (called with number of attempts)
+    retryStrategy: (times: number) => {
+      if (times > 5) {
+        console.warn(
+          '[ioredis] Redis connection failed after 5 retries, disabling cache',
+        );
+        return null; // Stop retrying
+      }
+      return Math.min(times * 100, 2000);
+    },
+    // Reconnect on certain errors
+    reconnectOnError: (err) => {
+      const targetError = /READONLY|ECONNRESET|ETIMEDOUT/;
+      return targetError.test(err.message);
+    },
+  };
+
+  // Use Redis URL if provided (preferred), otherwise use individual host/port/password
+  if (redisUrl) {
+    console.log('[ioredis] Using Redis URL configuration');
+    redisClient = new Redis(redisUrl, redisOptions);
+  } else {
+    console.log('[ioredis] Using Redis host/port configuration');
+    redisClient = new Redis({
+      host: redisHost,
+      port: redisPort,
+      password: redisPassword || undefined,
+      ...redisOptions,
+    });
+  }
+
+  // Attach listeners to avoid unhandled 'error' events and to provide diagnostics.
+  redisClient.on('error', (err) => {
+    console.warn('[ioredis] error', err && err.message ? err.message : err);
+  });
+  redisClient.on('connect', () => {
+    const connectionInfo = redisUrl
+      ? redisUrl.replace(/:[^:@]*@/, ':***@')
+      : `${redisHost}:${redisPort}`;
+    console.log('[ioredis] connecting to', connectionInfo);
+  });
+  redisClient.on('ready', () => {
+    console.log('[ioredis] ready');
+  });
+  redisClient.on('close', () => {
+    console.log('[ioredis] connection closed');
+  });
+} else {
+  console.warn('[ioredis] Redis disabled - using fallback mode');
+}
 
 @Global()
 @Module({
