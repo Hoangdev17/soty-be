@@ -25,6 +25,8 @@ export class ChannelsService {
 
     // Clear channels cache for this guild
     await this.cacheService.del(`channels:guild:${guildId}`);
+    // Also clear community cache since it includes channels
+    await this.cacheService.del(`community:${guildId}`);
 
     return channel;
   }
@@ -66,6 +68,8 @@ export class ChannelsService {
     // Clear related cache
     await this.cacheService.del(`channels:guild:${guildId}`);
     await this.cacheService.del(`channel:${channelId}`);
+    // Also clear community cache since it includes channels
+    await this.cacheService.del(`community:${guildId}`);
 
     return result;
   }
@@ -127,6 +131,8 @@ export class ChannelsService {
     // Clear related cache
     await this.cacheService.del(`channels:guild:${guildId}`);
     await this.cacheService.del(`channel:${channelId}`);
+    // Also clear community cache since it includes channels
+    await this.cacheService.del(`community:${guildId}`);
 
     return result;
   }
