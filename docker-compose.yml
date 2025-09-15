@@ -23,9 +23,7 @@ services:
       - redis
     environment:
       DATABASE_URL: ${DB_MONGO_URI}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_URL: ${REDIS_URL}
       USER_CACHE_TTL: ${USER_CACHE_TTL}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
@@ -53,7 +51,7 @@ services:
         '--appendfsync',
         'everysec',
         '--requirepass',
-        '${REDIS_PASSWORD}',
+        'yourRedisPassword123',
       ]
     volumes:
       - redis_data:/data
