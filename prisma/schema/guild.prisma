@@ -425,6 +425,8 @@ model GuildChannel {
 
   // The time the channel was created at
   createdAt DateTime @default(now())
+  createdById String
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   // The time the channel was deleted at
   deletedAt DateTime?

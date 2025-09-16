@@ -7,9 +7,12 @@ import {
   Get,
   Param,
   Query,
+  Put,
+  Delete,
 } from '@nestjs/common';
 import { MessageService } from './message.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { SendReplyDto } from './dto/send-reply.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from 'src/core/auth/dto/request-with-auth.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -37,5 +40,63 @@ export class MessageController {
     @Query('offset') offset?: string,
   ) {
     return this.messageService.getMessages(channelId, limit, offset);
+  }
+
+  @Put(':messageId/pin')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Pin a message' })
+  async pinMessage(
+    @Param('messageId') messageId: string,
+    @Body('channelId') channelId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.messageService.pinMessage(messageId, channelId, req.user.id);
+  }
+
+  @Delete(':messageId/pin')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Unpin a message' })
+  async unpinMessage(
+    @Param('messageId') messageId: string,
+    @Body('channelId') channelId: string,
+  ) {
+    return this.messageService.unpinMessage(messageId, channelId);
+  }
+
+  @Get('channels/:channelId/pinned')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get pinned messages in channel' })
+  async getPinnedMessages(@Param('channelId') channelId: string) {
+    return this.messageService.getPinnedMessages(channelId);
+  }
+
+  @Post('reply')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Send reply to a message' })
+  async sendReply(
+    @Body() sendReplyDto: SendReplyDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const { content, channelId, replyToMessageId, mentionAuthor } =
+      sendReplyDto;
+    return this.messageService.sendReply(
+      content,
+      channelId,
+      replyToMessageId,
+      req.user.id,
+      mentionAuthor,
+    );
+  }
+
+  @Get(':messageId/replies')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get message with its replies' })
+  async getMessageWithReplies(@Param('messageId') messageId: string) {
+    return this.messageService.getMessageWithReplies(messageId);
   }
 }

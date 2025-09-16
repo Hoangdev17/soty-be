@@ -14,10 +14,15 @@ export class ChannelsService {
     private readonly cacheService: CacheService,
   ) {}
 
-  async createChannel(guildId: string, createChannelDto: CreateChannelDto) {
+  async createChannel(
+    guildId: string,
+    createChannelDto: CreateChannelDto,
+    userId: string,
+  ) {
     const channel = await this.prisma.guildChannel.create({
       data: {
         id: this.snowflake.generate(),
+        createdById: userId,
         guildId: guildId,
         ...createChannelDto,
       },
@@ -85,6 +90,7 @@ export class ChannelsService {
       where: {
         guildId: guildId,
         deleted: false,
+        type: { in: [ChannelType.GUILD_TEXT, ChannelType.GUILD_VOICE] },
       },
       orderBy: {
         createdAt: 'asc',

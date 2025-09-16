@@ -8,6 +8,7 @@ import { AuthModule } from './core/auth/auth.module';
 import { PassportModule } from '@nestjs/passport';
 import { WebsocketModule } from './packages/websocket/websocket.module';
 import { MessageModule } from './packages/message/message.module';
+import { DmChannelModule } from './packages/dm/dm-channel.module';
 import { CoreCacheModule } from './core/cache/cache.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { CoreCacheModule } from './core/cache/cache.module';
     CommunityModule,
     AuthModule,
     MessageModule,
+    DmChannelModule,
     WebsocketModule,
   ],
   controllers: [AppController],

@@ -16,6 +16,8 @@ export const RequireManageChannels = () =>
   RequirePermissions(GuildPermissions.MANAGE_CHANNELS);
 export const RequireManageMessages = () =>
   RequirePermissions(GuildPermissions.MANAGE_MESSAGES);
+export const RequireManageThreads = () =>
+  RequirePermissions(GuildPermissions.MANAGE_THREADS);
 
 // Decorator for multiple permissions (user needs ANY of these)
 export const RequireAnyPermission = (...permissions: bigint[]) =>

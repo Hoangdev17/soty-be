@@ -129,4 +129,5 @@ model User {
   
   @@index([id, email])
   @@map("user")  
+  GuildChannel GuildChannel[]
 }
