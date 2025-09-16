@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
+import { CacheService } from 'src/core/cache/cache.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -14,6 +15,7 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private snowFlakeId: SnowflakeID,
+    private cacheService: CacheService,
   ) {}
 
   async createUser(dto: CreateUserDto) {
@@ -35,6 +37,9 @@ export class UsersService {
       },
     });
 
+    // Cache the new user
+    await this.cacheService.cacheUser(this.sanitizeForCache(user));
+
     return user;
   }
 
@@ -49,13 +54,20 @@ export class UsersService {
       where: { id: userId },
       data: { ...dto },
     });
-    // no cache here; auth layer will handle caching
+
+    // Clear user cache and re-cache with updated data
+    await this.cacheService.uncacheUser(userId, user.email, user.username);
+    await this.cacheService.cacheUser(this.sanitizeForCache(updated));
+
     return updated;
   }
 
   async findById(userId: string) {
-    const key = `user:id:${userId}`;
-    // no cache at this layer
+    const cacheKey = `user:id:${userId}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId, deleted: false } as any,
@@ -63,32 +75,37 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
     }
+
+    // Cache the user
+    await this.cacheService.cacheUser(this.sanitizeForCache(user));
     return user;
   }
 
   async findByEmail(email: string) {
-    const key = `user:email:${email}`;
-    // no cache at this layer
-
+    // Note: We only cache by ID, so we need to fetch from DB first
     const user = await this.prisma.user.findUnique({
       where: { email, deleted: false } as any,
     });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
     }
+
+    // Cache the user by ID for future lookups
+    await this.cacheService.cacheUser(this.sanitizeForCache(user));
     return user;
   }
 
   async findByUsername(username: string) {
-    const key = `user:username:${username}`;
-    // no cache at this layer
-
+    // Note: We only cache by ID, so we need to fetch from DB first
     const user = await this.prisma.user.findUnique({
       where: { username, deleted: false } as any,
     });
     if (!user) {
       throw new NotFoundException('Người dùng không tồn tại');
     }
+
+    // Cache the user by ID for future lookups
+    await this.cacheService.cacheUser(this.sanitizeForCache(user));
     return user;
   }
 
@@ -110,7 +127,10 @@ export class UsersService {
         deletedAt: new Date(),
       },
     });
-    // no cache at this layer
+
+    // Clear user cache when deleted
+    await this.cacheService.uncacheUser(userId, user.email, user.username);
+
     return updated;
   }
 

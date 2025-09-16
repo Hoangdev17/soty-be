@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ChannelsService } from './channels.service';
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../guards/permissions.guard';
 import { RequireManageChannels } from '../../decorators/permission-shortcuts.decorator';
 import { UpdateChannelDto } from './dto/update-channel.dto';
+import type { AuthenticatedRequest } from '../../../../core/auth/dto/request-with-auth.dto';
 
 @Controller('channels')
 export class ChannelsController {
@@ -30,8 +32,9 @@ export class ChannelsController {
   createChannel(
     @Param('guildId') guildId: string,
     @Body() dto: CreateChannelDto,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.channelService.createChannel(guildId, dto);
+    return this.channelService.createChannel(guildId, dto, req.user.id);
   }
 
   @Get(':guildId')

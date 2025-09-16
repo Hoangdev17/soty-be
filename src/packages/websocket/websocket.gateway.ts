@@ -326,6 +326,7 @@ export class WebsocketGateway
       const channel = await this.channelsService.createChannel(
         data.guildId,
         createData,
+        client.user.sub,
       );
 
       this.logger.log(

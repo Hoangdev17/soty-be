@@ -8,6 +8,7 @@ import {
   GuildPermissions,
   PermissionUtils,
 } from './constants/guild-permissions';
+import { ChannelType } from '@prisma/client';
 
 @Injectable()
 export class CommunityService {
@@ -169,7 +170,12 @@ export class CommunityService {
             avatar: true,
           },
         },
-        channels: true,
+        channels: {
+          where: {
+            deleted: false,
+            type: { in: [ChannelType.GUILD_TEXT, ChannelType.GUILD_VOICE] },
+          },
+        },
         roles: {
           orderBy: { position: 'desc' },
         },
