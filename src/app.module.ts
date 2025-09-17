@@ -13,7 +13,10 @@ import { CoreCacheModule } from './core/cache/cache.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
     CoreCacheModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     UsersModule,

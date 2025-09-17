@@ -14,7 +14,7 @@ import { ChannelsModule } from '../community/modules/channels/channels.module';
       secret: process.env.AUTH_JWT_SECRET,
       signOptions: { expiresIn: '1h' },
     }),
-    MessageModule,
+    forwardRef(() => MessageModule),
     forwardRef(() => MembersModule),
     ChannelsModule,
   ],

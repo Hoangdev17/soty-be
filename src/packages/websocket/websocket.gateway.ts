@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { MessageService } from '../message/message.service';
 import { MembersService } from '../community/modules/members/members.service';
@@ -52,7 +53,9 @@ export class WebsocketGateway
 
   constructor(
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
+    @Inject(forwardRef(() => MessageService))
     private readonly messageService: MessageService,
     @Inject(forwardRef(() => MembersService))
     private readonly membersService: MembersService,
@@ -69,7 +72,14 @@ export class WebsocketGateway
 
       if (token) {
         try {
-          const payload: AuthenticatedUser = this.jwtService.verify(token);
+          const secret = this.configService.get<string>('AUTH_JWT_SECRET');
+          if (!secret) {
+            throw new Error('JWT secret not configured');
+          }
+
+          const payload: AuthenticatedUser = this.jwtService.verify(token, {
+            secret,
+          });
           client.user = payload;
           this.logger.log(
             `Client connected: ${client.id}, User: ${payload.sub}`,
