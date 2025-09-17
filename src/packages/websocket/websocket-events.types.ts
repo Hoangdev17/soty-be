@@ -31,6 +31,15 @@ export const WEBSOCKET_EVENTS = {
   // Channel events
   CREATE_CHANNEL: 'create_channel',
   CHANNEL_CREATED: 'channel_created',
+  CREATED_THREAD: 'created_thread',
+  UPDATED_THREAD: 'updated_thread',
+  DELETED_THREAD: 'deleted_thread',
+
+  //message events
+  MESSAGE_DELETED: 'message_deleted',
+  MESSAGE_UPDATED: 'message_updated',
+  MESSAGES_PINNED: 'messages_pinned',
+  MESSAGES_UNPINNED: 'messages_unpinned',
 
   // Notification events
   NOTIFICATION: 'notification',

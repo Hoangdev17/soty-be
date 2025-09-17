@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CacheService } from 'src/core/cache/cache.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { SnowflakeID } from 'src/utils/snowflake';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
+import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
+import { channel } from 'diagnostics_channel';
 
 @Injectable()
 export class MessageService {
@@ -10,6 +13,8 @@ export class MessageService {
     private readonly prismaService: PrismaService,
     private readonly snowflakeID: SnowflakeID,
     private readonly cacheService: CacheService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private readonly websocketGateway: WebsocketGateway,
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, authorId: string) {
@@ -149,6 +154,7 @@ export class MessageService {
             },
           },
         },
+        pinnedBy: { select: { id: true, username: true, avatar: true } },
       },
     });
 
@@ -161,13 +167,57 @@ export class MessageService {
     // Clear cache
     await this.clearChannelMessagesCache(channelId);
 
-    return pinned;
+    const formatted = {
+      id: pinned.message.id,
+      content: pinned.message.content,
+      createdAt: pinned.message.createdAt,
+      type: 'text',
+      author: {
+        id: pinned.message.author.id,
+        username: pinned.message.author.username,
+        avatar: pinned.message.author.avatar || '',
+      },
+      channelId: pinned.message.channelId,
+      pinned: true, // Thêm flag pinned
+      pinnedAt: pinned.pinnedAt,
+      pinnedBy: {
+        id: pinned.pinnedBy.id,
+        username: pinned.pinnedBy.username,
+        avatar: pinned.pinnedBy.avatar || '',
+      },
+    };
+
+    this.websocketGateway.emitToRoom(
+      `channel_${channelId}`,
+      WEBSOCKET_EVENTS.MESSAGES_PINNED,
+      { channelId, formatted },
+    );
+
+    return {
+      id: pinned.message.id,
+      content: pinned.message.content,
+      createdAt: pinned.message.createdAt,
+      type: 'text',
+      author: {
+        id: pinned.message.author.id,
+        username: pinned.message.author.username,
+        avatar: pinned.message.author.avatar || '',
+      },
+      channelId: pinned.message.channelId,
+      pinned: true, // Thêm flag pinned
+      pinnedAt: pinned.pinnedAt,
+      pinnedBy: {
+        id: pinned.pinnedBy.id,
+        username: pinned.pinnedBy.username,
+        avatar: pinned.pinnedBy.avatar || '',
+      },
+    };
   }
 
   async unpinMessage(messageId: string, channelId: string) {
     // Check if message is pinned
     const pinnedMessage = await this.prismaService.pinnedMessage.findFirst({
-      where: { messageId },
+      where: { messageId, channelId },
     });
 
     if (!pinnedMessage) {
@@ -188,6 +238,12 @@ export class MessageService {
     // Clear cache
     await this.clearChannelMessagesCache(channelId);
 
+    this.websocketGateway.emitToRoom(
+      `channel_${channelId}`,
+      WEBSOCKET_EVENTS.MESSAGES_UNPINNED,
+      { channelId, messageId },
+    );
+
     return { success: true, messageId };
   }
 
@@ -207,6 +263,9 @@ export class MessageService {
             author: {
               select: { id: true, username: true, avatar: true },
             },
+            channel: {
+              select: { id: true, name: true },
+            },
           },
         },
         pinnedBy: {
@@ -215,9 +274,31 @@ export class MessageService {
       },
     });
 
+    // Transform to consistent message format
+    const formattedMessages = pinnedMessages.map((pinned) => ({
+      id: pinned.message.id,
+      content: pinned.message.content,
+      createdAt: pinned.message.createdAt,
+      type: 'text',
+      author: {
+        id: pinned.message.author.id,
+        username: pinned.message.author.username,
+        avatar: pinned.message.author.avatar || '',
+      },
+      channelId: pinned.message.channelId,
+      channelName: pinned.message.channel?.name || '',
+      pinned: true,
+      pinnedAt: pinned.pinnedAt,
+      pinnedBy: {
+        id: pinned.pinnedBy.id,
+        username: pinned.pinnedBy.username,
+        avatar: pinned.pinnedBy.avatar || '',
+      },
+    }));
+
     // Cache for 5 minutes
-    await this.cacheService.set(cacheKey, pinnedMessages, 300);
-    return pinnedMessages;
+    await this.cacheService.set(cacheKey, formattedMessages, 300);
+    return formattedMessages;
   }
 
   async sendReply(
