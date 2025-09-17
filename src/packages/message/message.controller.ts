@@ -15,7 +15,8 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { SendReplyDto } from './dto/send-reply.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from 'src/core/auth/dto/request-with-auth.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { PinMessageDto } from './dto/pin-message.dto';
 
 @ApiTags('messages')
 @Controller('messages')
@@ -48,21 +49,25 @@ export class MessageController {
   @ApiOperation({ summary: 'Pin a message' })
   async pinMessage(
     @Param('messageId') messageId: string,
-    @Body('channelId') channelId: string,
+    @Body() pinMessageDto: PinMessageDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.messageService.pinMessage(messageId, channelId, req.user.id);
+    return this.messageService.pinMessage(
+      messageId,
+      pinMessageDto.channelId,
+      req.user.id,
+    );
   }
 
-  @Delete(':messageId/pin')
+  @Delete(':messageId/unpin')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Unpin a message' })
   async unpinMessage(
     @Param('messageId') messageId: string,
-    @Body('channelId') channelId: string,
+    @Body() pinMessageDto: PinMessageDto,
   ) {
-    return this.messageService.unpinMessage(messageId, channelId);
+    return this.messageService.unpinMessage(messageId, pinMessageDto.channelId);
   }
 
   @Get('channels/:channelId/pinned')

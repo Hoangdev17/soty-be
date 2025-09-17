@@ -4,6 +4,8 @@ import { CacheService } from 'src/core/cache/cache.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { ChannelType } from '@prisma/client';
+import { WebsocketGateway } from '../../../websocket/websocket.gateway';
+import { WEBSOCKET_EVENTS } from '../../../websocket/websocket-events.types';
 
 @Injectable()
 export class ThreadsService {
@@ -11,6 +13,7 @@ export class ThreadsService {
     private readonly prisma: PrismaService,
     private readonly snowflake: SnowflakeID,
     private readonly cacheService: CacheService,
+    private readonly ws: WebsocketGateway,
   ) {}
 
   async createThread(
@@ -74,6 +77,12 @@ export class ThreadsService {
 
     // Clear related cache
     await this.clearThreadCache(parentChannel.guildId, channelId, threadId);
+
+    this.ws.emitToRoom(
+      `channel_${channelId}`,
+      WEBSOCKET_EVENTS.CREATED_THREAD,
+      { thread },
+    );
 
     return thread;
   }
