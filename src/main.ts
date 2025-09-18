@@ -14,11 +14,13 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      'http://localhost:5000', // nếu dev frontend local
-      'https://soty-fe.vercel.app', // domain frontend đã deploy
+      'http://localhost:5000', // dev frontend local
+      'https://soty-fe.vercel.app', // ✅ domain frontend đã có
+      'https://soty-fe-*.vercel.app', // cho preview deployments
     ],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'], // thêm headers cần thiết
   });
 
   await app.listen(3000);
