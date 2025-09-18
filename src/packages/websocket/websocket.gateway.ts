@@ -293,7 +293,7 @@ export class WebsocketGateway
     try {
       const members = await this.membersService.joinCommunity(
         data.communityId,
-        data.userId,
+        data.userId || '',
       );
 
       this.logger.log(

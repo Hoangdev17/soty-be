@@ -3,6 +3,8 @@ import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CacheService } from 'src/core/cache/cache.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { ChannelType } from '@prisma/client';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
+import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
 
 @Injectable()
 export class DmChannelService {
@@ -10,6 +12,7 @@ export class DmChannelService {
     private readonly prismaService: PrismaService,
     private readonly snowflakeID: SnowflakeID,
     private readonly cacheService: CacheService,
+    private readonly ws: WebsocketGateway,
   ) {}
 
   async createDmChannel(userId: string, userIds: string[]) {
@@ -102,7 +105,7 @@ export class DmChannelService {
         allRecipients.map((userId) => this.clearUserDmCache(userId)),
       );
 
-      return {
+      const format = {
         id: newChannel.id,
         type: newChannel.type,
         name: newChannel.name,
@@ -110,6 +113,14 @@ export class DmChannelService {
         createdAt: newChannel.createdAt,
         createdBy: newChannel.createdBy,
       };
+
+      this.ws.emitToRoom(
+        `channel_${newChannel.id}`,
+        WEBSOCKET_EVENTS.CHANNEL_CREATED,
+        format,
+      );
+
+      return format;
     }
 
     // Create new DM channel
@@ -143,7 +154,7 @@ export class DmChannelService {
       allRecipients.map((userId) => this.clearUserDmCache(userId)),
     );
 
-    return {
+    const format = {
       id: newChannel.id,
       type: newChannel.type,
       name: newChannel.name,
@@ -151,6 +162,14 @@ export class DmChannelService {
       createdAt: newChannel.createdAt,
       createdBy: newChannel.createdBy,
     };
+
+    this.ws.emitToRoom(
+      `channel_${newChannel.id}`,
+      WEBSOCKET_EVENTS.CHANNEL_CREATED,
+      format,
+    );
+
+    return format;
   }
 
   async getUserDmChannels(userId: string) {
@@ -231,6 +250,7 @@ export class DmChannelService {
 
     // Cache for 5 minutes
     await this.cacheService.set(cacheKey, formattedChannels, 300);
+
     return formattedChannels;
   }
 
