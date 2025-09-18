@@ -14,6 +14,7 @@ export const createChannelSchema = z.object({
     .optional()
     .describe('Vị trí của kênh trong danh sách'),
   type: z.enum(ChannelType).describe('Loại kênh (văn bản hoặc thoại)'),
+  categoryId: z.string().cuid().optional().describe('ID của category nếu có'),
   manageable: z
     .boolean()
     .default(true)
@@ -68,6 +69,13 @@ export class CreateChannelDto extends createZodDto(createChannelSchema) {
     required: false,
   })
   position: number;
+
+  @ApiProperty({
+    example: 'clm5opgmc0001x8b8h2d9r7z1',
+    description: 'ID của category nếu có',
+    required: false,
+  })
+  categoryId?: string;
 
   @ApiProperty({
     example: 'GUILD_TEXT',

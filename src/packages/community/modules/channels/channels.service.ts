@@ -17,6 +17,7 @@ export class ChannelsService {
       data: {
         id: this.snowflake.generate(),
         guildId: guildId,
+        categoryId: createChannelDto.categoryId ?? null,
         ...createChannelDto,
       },
     });

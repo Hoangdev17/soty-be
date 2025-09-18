@@ -9,6 +9,7 @@ import { PassportModule } from '@nestjs/passport';
 import { WebsocketModule } from './packages/websocket/websocket.module';
 import { MessageModule } from './packages/message/message.module';
 import { MembersModule } from './packages/community/modules/members/members.module';
+import { GuildCategoryModule } from './packages/categories/categories.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { MembersModule } from './packages/community/modules/members/members.modu
     AuthModule,
     MessageModule,
     WebsocketModule,
+    GuildCategoryModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -113,6 +113,7 @@ model Guild {
   GuildShopItem       GuildShopItem[]
   LeaderboardSnapshot LeaderboardSnapshot[]
   GuildModuleSetting  GuildModuleSetting[]
+  GuildCategory          GuildCategory[]
 
   @@index([ownerId, url])
   @@map("guilds")
@@ -320,8 +321,12 @@ model GuildPermissionOverwrite {
   allow String[]
 
   // The GuildChannel this overwrite is for
-  channelId String
-  channel   GuildChannel @relation(fields: [channelId], references: [id])
+  channelId String?
+  channel   GuildChannel? @relation("ChannelOverwrites", fields: [channelId], references: [id])
+
+  // The GuildCategory this overwrite is for
+  categoryId String?
+  category   GuildCategory? @relation("CategoryOverwrites", fields: [categoryId], references: [id])
 
   // The permissions that are denied for the user or role.
   deny String[]
@@ -344,10 +349,13 @@ model GuildPermissionOverwrite {
   // PermissionOverwriteType
   type Int @default(0)
 
-  @@unique([channelId, targetId, type])
+  @@unique([channelId, categoryId, targetId, type])
   @@index([userId, channelId])
   @@index([roleId, channelId])
   @@index([channelId])
+  @@index([userId, categoryId])
+  @@index([roleId, categoryId])
+  @@index([categoryId])
   @@map("guild_permission_overwrites")
 }
 
@@ -360,7 +368,6 @@ enum ChannelType {
   DM // 1
   GUILD_VOICE // 2
   GROUP_DM // 3
-  GUILD_CATEGORY // 4
   GUILD_NEWS // 5
   GUILD_FORUM // 15
   GUILD_PUBLIC_THREAD // 11
@@ -386,13 +393,12 @@ model GuildChannel {
   // Whether the channel is nsfw
   nsfw Boolean @default(false)
 
-  // The category parent of this channel
-  parentId String?
-  parent   GuildChannel?  @relation("ParentToChild", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children GuildChannel[] @relation("ParentToChild")
+  // The category this channel belongs to
+  categoryId String?
+  category   GuildCategory? @relation("CategoryChannels", fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   // A manager of permission overwrites that belong to this channel
-  permissionOverwrites GuildPermissionOverwrite[]
+  permissionOverwrites GuildPermissionOverwrite[] @relation("ChannelOverwrites")
 
   // If the permissionOverwrites match the parent channel, null if no parent
   permissionsLocked Boolean @default(false)
@@ -451,8 +457,56 @@ model GuildChannel {
   // botIntegrations         BotIntegration[]
   // notificationPreferences NotificationPreference[]
 
-  @@index([guildId, parentId])
+  @@index([guildId, categoryId])
   @@map("guild_channels")
+}
+
+model GuildCategory {
+  // The category's id
+  id String @id @default(cuid()) @map("_id")
+
+  // The name of the category
+  name String
+
+  // The position of the category in the guild's channel list
+  position Int? @default(0)
+
+  // Whether the category is nsfw
+  nsfw Boolean @default(false)
+
+  // A manager of permission overwrites that belong to this category
+  permissionOverwrites GuildPermissionOverwrite[] @relation("CategoryOverwrites")
+
+  // Whether the permissionOverwrites are locked (synced with child channels)
+  permissionsLocked Boolean @default(false)
+
+  // The time the category was created at
+  createdAt DateTime @default(now())
+
+  // The time the category was deleted at
+  deletedAt DateTime?
+
+  // Whether the category is deletable by the client user
+  deletable Boolean @default(true)
+
+  // Whether the category is deleted
+  deleted Boolean @default(false)
+
+  // Whether the category is manageable by the client user
+  manageable Boolean @default(true)
+
+  // Whether the category is viewable by the client user
+  viewable Boolean @default(true)
+
+  // The guild the category belongs to
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // The child channels belonging to this category
+  channels GuildChannel[] @relation("CategoryChannels")
+
+  @@index([guildId, position])
+  @@map("guild_categories")
 }
 
 /**
@@ -897,7 +951,6 @@ model GuildEvent {
   @@index([guildId])
   @@map("guild_events")
 }
-
 model GuildSubscriptionListing {
   id            String     @id @map("_id")
   name          String

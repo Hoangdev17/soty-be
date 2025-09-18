@@ -20,6 +20,7 @@ export class PrismaService
   }
 
   async onModuleInit() {
+    this.snowflake = new SnowflakeID();
     await this.$connect();
   }
 
