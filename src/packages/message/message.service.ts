@@ -5,7 +5,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
-import { channel } from 'diagnostics_channel';
+// ...existing imports...
 
 @Injectable()
 export class MessageService {
@@ -18,15 +18,44 @@ export class MessageService {
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, authorId: string) {
-    const { content, channelId } = sendMessageDto;
+    const { content, channelId, replyToMessageId, mentionAuthor } =
+      sendMessageDto;
+
+    // If this is a reply, verify the original message exists
+    let originalMessage: any = null;
+    if (replyToMessageId) {
+      originalMessage = await this.prismaService.guildMessage.findFirst({
+        where: {
+          id: replyToMessageId,
+          channelId,
+          deleted: false,
+        },
+        include: {
+          author: {
+            select: { id: true, username: true, avatar: true },
+          },
+          channel: {
+            select: { id: true, name: true, guildId: true },
+          },
+        },
+      });
+
+      if (!originalMessage) {
+        throw new Error('Original message not found');
+      }
+    }
 
     // Create the message in database
     const message = await this.prismaService.guildMessage.create({
       data: {
         id: this.snowflakeID.generate(),
-        content,
+        content:
+          replyToMessageId && mentionAuthor
+            ? `<@${originalMessage.author.id}> ${content}`
+            : content,
         channelId,
         authorId,
+        type: replyToMessageId ? 19 : 0, // 19 = REPLY type
       },
       include: {
         author: {
@@ -45,14 +74,29 @@ export class MessageService {
       },
     });
 
+    // If this is a reply, create the message reference
+    if (replyToMessageId) {
+      await this.prismaService.guildMessageReference.create({
+        data: {
+          id: this.snowflakeID.generate(),
+          reference: replyToMessageId,
+          referenceBy: message.id,
+          channelId,
+          guildId: originalMessage.channel?.guildId,
+          type: 0, // DEFAULT reference type
+        },
+      });
+    }
+
     // Clear messages cache for this channel
     await this.clearChannelMessagesCache(channelId);
 
-    return {
+    // Build response object
+    const response: any = {
       id: message.id,
       content: message.content,
       createdAt: message.createdAt,
-      type: 'text',
+      type: replyToMessageId ? 'reply' : 'text',
       room: `channel_${channelId}`,
       author: {
         id: message.author.id,
@@ -62,6 +106,17 @@ export class MessageService {
       channelId: message.channel.id,
       channelName: message.channel.name,
     };
+
+    // Add reply information if this is a reply
+    if (replyToMessageId && originalMessage) {
+      response.replyTo = {
+        id: originalMessage.id,
+        content: originalMessage.content,
+        author: originalMessage.author,
+      };
+    }
+
+    return response;
   }
 
   async getMessages(channelId: string, limit?: string, offset?: string) {
@@ -79,19 +134,57 @@ export class MessageService {
       orderBy: { createdAt: 'asc' },
       take: limitNum,
       skip: offsetNum,
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
+      include: {
         author: {
           select: { id: true, username: true, avatar: true },
+        },
+        referredBy: {
+          include: {
+            messageRef: {
+              select: {
+                id: true,
+                content: true,
+                author: {
+                  select: { id: true, username: true, avatar: true },
+                },
+              },
+            },
+          },
         },
       },
     });
 
+    // Format messages to include reply information
+    const formattedMessages = messages.map((message) => {
+      const baseMessage: any = {
+        id: message.id,
+        content: message.content,
+        createdAt: message.createdAt,
+        type: message.type === 19 ? 'reply' : 'text',
+        author: {
+          id: message.author.id,
+          username: message.author.username,
+          avatar: message.author.avatar || '',
+        },
+        channelId: message.channelId,
+      };
+
+      // Add reply information if this message has references
+      if (message.referredBy && message.referredBy.length > 0) {
+        const reference = message.referredBy[0]; // Get first reference
+        baseMessage.replyTo = {
+          id: reference.messageRef.id,
+          content: reference.messageRef.content,
+          author: reference.messageRef.author,
+        };
+      }
+
+      return baseMessage;
+    });
+
     // Cache for 1 minute
-    await this.cacheService.set(cacheKey, messages, 60);
-    return messages;
+    await this.cacheService.set(cacheKey, formattedMessages, 60);
+    return formattedMessages;
   }
 
   private async clearChannelMessagesCache(channelId: string) {
