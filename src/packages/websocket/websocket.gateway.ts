@@ -185,7 +185,11 @@ export class WebsocketGateway
       } else {
         // Create new message using MessageService
         message = await this.messageService.sendMessage(
-          { content: data.message, channelId },
+          {
+            content: data.message,
+            channelId,
+            mentionAuthor: false,
+          },
           client.user.sub,
         );
         this.logger.log(`Created new message ${message.id}`);
