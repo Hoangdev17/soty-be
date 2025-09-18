@@ -9,6 +9,7 @@ import { SnowflakeID } from '../../../../utils/snowflake';
 import { GuildPermissions } from '../../constants/guild-permissions';
 import { WebsocketGateway } from '../../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../../websocket/websocket-events.types';
+import { CacheService } from '../../../../core/cache/cache.service';
 
 @Injectable()
 export class MembersService {
@@ -17,9 +18,12 @@ export class MembersService {
     private snowflake: SnowflakeID,
     @Inject(forwardRef(() => WebsocketGateway))
     private websocketGateway: WebsocketGateway,
+    private cacheService: CacheService,
   ) {}
 
   async joinCommunity(communityId: string, userId: string) {
+    await this.cacheService.del(`user:${userId}:communities`);
+    await this.cacheService.del(`community:${communityId}`);
     // Check if user is already a member
     const existingMember = await this.prisma.guildMember.findFirst({
       where: {
@@ -82,6 +86,17 @@ export class MembersService {
         },
       },
     });
+
+    this.websocketGateway.broadcastToCommunity(
+      communityId,
+      WEBSOCKET_EVENTS.MEMBER_JOINED,
+      {
+        members: member,
+        communityId,
+        joinedBy: userId,
+        timestamp: new Date(),
+      },
+    );
 
     return member;
   }

@@ -34,6 +34,7 @@ export class CommunityService {
         description: createCommunityDto.description,
         avatar: createCommunityDto.avatar,
         banner: createCommunityDto.banner,
+        memberCount: 1,
         visibility: createCommunityDto.isPrivate ? 'PRIVATE' : 'PUBLIC',
         ownerId: userId,
         url: `${urlSlug}-${guildId}`,

@@ -112,10 +112,12 @@ export interface CommunityUpdateData {
 
 export interface MemberEventData {
   communityId: string;
-  userId: string;
-  username: string;
+  userId?: string;
+  username?: string;
   roleId?: string;
   roleName?: string;
+  members?: MemberData[];
+  joinedBy?: string;
   timestamp: Date;
 }
 
