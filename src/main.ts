@@ -16,7 +16,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:5000', // dev frontend local
       'https://soty-fe.vercel.app', // ✅ domain frontend đã có
-      'https://soty-fe-*.vercel.app', // cho preview deployments
+      'https://soty-fe-*.vercel.app',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
