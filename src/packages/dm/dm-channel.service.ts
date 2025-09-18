@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CacheService } from 'src/core/cache/cache.service';
 import { SnowflakeID } from 'src/utils/snowflake';
+import { ChannelType } from '@prisma/client';
 
 @Injectable()
 export class DmChannelService {
@@ -11,40 +12,144 @@ export class DmChannelService {
     private readonly cacheService: CacheService,
   ) {}
 
-  async createDmChannel(userId1: string, userId2: string) {
-    // For now, we'll implement DM using existing message system
-    // We can create a special "virtual" DM system or extend the current schema later
+  async createDmChannel(userId: string, userIds: string[]) {
+    const isGroupDm = userIds.length > 1;
+    const channelType = isGroupDm ? 'GROUP_DM' : 'DM';
 
-    // Check if users have existing conversation in any guild (simplified approach)
-    const existingMessages = await this.prismaService.guildMessage.findFirst({
-      where: {
-        OR: [
-          { authorId: userId1, content: { contains: `@${userId2}` } },
-          { authorId: userId2, content: { contains: `@${userId1}` } },
-        ],
-      },
-      include: {
-        channel: true,
-      },
-    });
+    const allRecipients = [userId, ...userIds].filter(
+      (id, index, arr) => arr.indexOf(id) === index,
+    );
 
-    if (existingMessages) {
+    if (!isGroupDm) {
+      const otherUserId = userIds[0];
+      const otherUser = await this.prismaService.user.findUnique({
+        where: { id: otherUserId },
+        select: { username: true },
+      });
+
+      if (!otherUser) {
+        throw new Error('User not found');
+      }
+
+      const channelName = otherUser.username;
+
+      const existingChannel = await this.prismaService.guildChannel.findFirst({
+        where: {
+          type: channelType,
+          recipients: {
+            hasEvery: allRecipients,
+          },
+          deleted: false,
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              username: true,
+              avatar: true,
+            },
+          },
+        },
+      });
+
+      if (existingChannel) {
+        // Update name if it's not the correct username
+        if (existingChannel.name !== channelName) {
+          await this.prismaService.guildChannel.update({
+            where: { id: existingChannel.id },
+            data: { name: channelName },
+          });
+          // Clear cache for all users in the DM after update
+          await Promise.all(
+            allRecipients.map((userId) => this.clearUserDmCache(userId)),
+          );
+        }
+        return {
+          id: existingChannel.id,
+          type: existingChannel.type,
+          name: channelName,
+          recipients: existingChannel.recipients,
+          createdAt: existingChannel.createdAt,
+          createdBy: existingChannel.createdBy,
+        };
+      }
+
+      const newChannel = await this.prismaService.guildChannel.create({
+        data: {
+          id: this.snowflakeID.generate(),
+          name: channelName,
+          type: channelType as any,
+          recipients: allRecipients,
+          createdById: userId,
+          guildId: 'dm-system-guild',
+          manageable: true,
+          viewAble: true,
+          deletable: true,
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              username: true,
+              avatar: true,
+            },
+          },
+        },
+      });
+
+      // Clear cache for all users in the DM
+      await Promise.all(
+        allRecipients.map((userId) => this.clearUserDmCache(userId)),
+      );
+
       return {
-        id: `dm-${userId1}-${userId2}`,
-        type: 'DM',
-        recipients: [userId1, userId2],
-        name: 'Direct Message',
-        isVirtual: true,
+        id: newChannel.id,
+        type: newChannel.type,
+        name: newChannel.name,
+        recipients: newChannel.recipients,
+        createdAt: newChannel.createdAt,
+        createdBy: newChannel.createdBy,
       };
     }
 
-    // Return virtual DM channel
+    // Create new DM channel
+    const channelName = ChannelType.GROUP_DM;
+
+    const newChannel = await this.prismaService.guildChannel.create({
+      data: {
+        id: this.snowflakeID.generate(),
+        name: channelName,
+        type: channelType as any,
+        recipients: allRecipients,
+        createdById: userId,
+        guildId: 'dm-system-guild',
+        manageable: true,
+        viewAble: true,
+        deletable: true,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    // Clear cache for all users in the DM
+    await Promise.all(
+      allRecipients.map((userId) => this.clearUserDmCache(userId)),
+    );
+
     return {
-      id: `dm-${userId1}-${userId2}`,
-      type: 'DM',
-      recipients: [userId1, userId2],
-      name: 'Direct Message',
-      isVirtual: true,
+      id: newChannel.id,
+      type: newChannel.type,
+      name: newChannel.name,
+      recipients: newChannel.recipients,
+      createdAt: newChannel.createdAt,
+      createdBy: newChannel.createdBy,
     };
   }
 
@@ -55,131 +160,166 @@ export class DmChannelService {
     const cached = await this.cacheService.get(cacheKey);
     if (cached) return cached;
 
-    // For now, return empty array as we're using virtual DM system
-    // In a real implementation, you might query conversations from message history
-    const dmChannels = [];
+    // Get all DM channels where user is a recipient
+    const dmChannels = await this.prismaService.guildChannel.findMany({
+      where: {
+        recipients: {
+          has: userId,
+        },
+        type: {
+          in: ['DM', 'GROUP_DM'],
+        },
+        deleted: false,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+        messages: {
+          take: 1,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            author: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const formattedChannels = await Promise.all(
+      dmChannels.map(async (channel) => {
+        let channelName = channel.name;
+        if (channel.type === 'DM') {
+          // For 1:1 DM, ensure name is the other user's username
+          const otherUserId = channel.recipients.find((id) => id !== userId);
+          if (otherUserId) {
+            const otherUser = await this.prismaService.user.findUnique({
+              where: { id: otherUserId },
+              select: { username: true },
+            });
+            channelName = otherUser ? otherUser.username : channel.name;
+          }
+        }
+        return {
+          id: channel.id,
+          type: channel.type,
+          name: channelName,
+          recipients: channel.recipients,
+          createdAt: channel.createdAt,
+          createdBy: channel.createdBy,
+          lastMessage: channel.messages[0] || null,
+        };
+      }),
+    );
 
     // Cache for 5 minutes
-    await this.cacheService.set(cacheKey, dmChannels, 300);
-    return dmChannels;
-  }
-
-  async sendDmMessage(channelId: string, content: string, authorId: string) {
-    // Extract recipient ID from virtual channel ID
-    const channelParts = channelId.split('-');
-    if (channelParts.length !== 3 || channelParts[0] !== 'dm') {
-      throw new Error('Invalid DM channel ID');
-    }
-
-    const [, userId1, userId2] = channelParts;
-    const recipientId = userId1 === authorId ? userId2 : userId1;
-
-    // For virtual DM, we could create a special message format
-    // or use a notification system. For now, we'll return a virtual message
-    const virtualMessage = {
-      id: this.snowflakeID.generate(),
-      content,
-      createdAt: new Date(),
-      type: 'dm',
-      room: `dm_${channelId}`,
-      author: {
-        id: authorId,
-        username: 'User', // Would need to fetch from database
-        avatar: '',
-      },
-      channelId,
-      recipientId,
-    };
-
-    // Clear cache
-    await this.clearDmMessagesCache(channelId);
-    await this.clearUserDmCache(userId1);
-    await this.clearUserDmCache(userId2);
-
-    return virtualMessage;
-  }
-
-  async getDmMessages(
-    channelId: string,
-    userId: string,
-    limit?: string,
-    offset?: string,
-  ) {
-    // Extract recipient ID from virtual channel ID
-    const channelParts = channelId.split('-');
-    if (channelParts.length !== 3 || channelParts[0] !== 'dm') {
-      throw new Error('Invalid DM channel ID');
-    }
-
-    const limitNum = limit ? parseInt(limit, 10) : 50;
-    const offsetNum = offset ? parseInt(offset, 10) : 0;
-
-    const cacheKey = `dm:messages:channel:${channelId}:limit:${limitNum}:offset:${offsetNum}`;
-
-    // Try cache first
-    const cached = await this.cacheService.get(cacheKey);
-    if (cached) return cached;
-
-    // For virtual DM, return empty messages for now
-    // In real implementation, you might query message history between users
-    const messages = [];
-
-    // Cache for 1 minute
-    await this.cacheService.set(cacheKey, messages, 60);
-    return messages;
-  }
-
-  async getDmChannel(channelId: string, userId: string) {
-    const cacheKey = `dm:channel:${channelId}:user:${userId}`;
-
-    // Try cache first
-    const cached = await this.cacheService.get(cacheKey);
-    if (cached) return cached;
-
-    // Extract recipient ID from virtual channel ID
-    const channelParts = channelId.split('-');
-    if (channelParts.length !== 3 || channelParts[0] !== 'dm') {
-      throw new Error('Invalid DM channel ID');
-    }
-
-    const [, userId1, userId2] = channelParts;
-    if (userId !== userId1 && userId !== userId2) {
-      throw new Error('Unauthorized access to DM channel');
-    }
-
-    const result = {
-      id: channelId,
-      type: 'DM',
-      name: 'Direct Message',
-      recipients: [userId1, userId2],
-      recipientId: userId1 === userId ? userId2 : userId1,
-      isVirtual: true,
-    };
-
-    // Cache for 10 minutes
-    await this.cacheService.set(cacheKey, result, 600);
-    return result;
+    await this.cacheService.set(cacheKey, formattedChannels, 300);
+    return formattedChannels;
   }
 
   private async clearUserDmCache(userId: string) {
     await this.cacheService.del(`dm:user:${userId}:channels`);
   }
 
-  private async clearDmMessagesCache(channelId: string) {
-    const keys = [
-      `dm:messages:channel:${channelId}:recent`,
-      `dm:messages:channel:${channelId}:count`,
-    ];
+  async getChannelById(channelId: string, userId: string) {
+    const cacheKey = `dm:channel:${channelId}`;
 
-    // Clear common pagination combinations
-    for (let limit = 10; limit <= 100; limit += 10) {
-      for (let offset = 0; offset <= 500; offset += 50) {
-        keys.push(
-          `dm:messages:channel:${channelId}:limit:${limit}:offset:${offset}`,
-        );
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const channel = await this.prismaService.guildChannel.findUnique({
+      where: { id: channelId },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+        messages: {
+          take: 1,
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+            author: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!channel) {
+      return null;
+    }
+
+    // Get recipients info (exclude current user)
+    const otherRecipients = channel.recipients.filter((id) => id !== userId);
+    const recipientsInfo = await Promise.all(
+      otherRecipients.map(async (recipientId) => {
+        const user = await this.prismaService.user.findUnique({
+          where: { id: recipientId },
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        });
+        return user;
+      }),
+    );
+
+    let channelName = channel.name;
+    if (channel.type === 'DM') {
+      // For 1:1 DM, ensure name is the other user's username
+      const otherUserId = channel.recipients.find((id) => id !== userId);
+      if (otherUserId) {
+        const otherUser = await this.prismaService.user.findUnique({
+          where: { id: otherUserId },
+          select: { username: true },
+        });
+        channelName = otherUser ? otherUser.username : channel.name;
       }
     }
 
-    await Promise.all(keys.map((key) => this.cacheService.del(key)));
+    const formattedChannel = {
+      id: channel.id,
+      type: channel.type,
+      name: channelName,
+      recipients: recipientsInfo, // Use recipientsInfo instead of string array
+      createdAt: channel.createdAt,
+      createdBy: channel.createdBy,
+      lastMessage: channel.messages[0] || null,
+    };
+    await this.cacheService.set(cacheKey, formattedChannel, 300);
+    return formattedChannel;
   }
 }
