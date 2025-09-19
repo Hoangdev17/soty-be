@@ -55,16 +55,4 @@ export class UploadsService {
       throw err;
     }
   }
-
-  async getResource(publicId: string) {
-    try {
-      return await cloudinary.api.resource(publicId, { resource_type: 'auto' });
-    } catch (error) {
-      throw new Error(`Resource not found: ${error.message}`);
-    }
-  }
-
-  async deleteResource(publicId: string) {
-    return cloudinary.uploader.destroy(publicId, { resource_type: 'auto' });
-  }
 }
