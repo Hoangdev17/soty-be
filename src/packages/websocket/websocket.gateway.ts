@@ -172,49 +172,80 @@ export class WebsocketGateway
         include: {
           author: true,
           channel: true,
+          referredBy: {
+            include: {
+              messageRef: {
+                select: {
+                  id: true,
+                  content: true,
+                  author: {
+                    select: { id: true, username: true, avatar: true },
+                  },
+                },
+              },
+            },
+          },
         },
       });
 
       let message;
+      let messageData: MessageData;
+
       if (existingMessage) {
-        // Use existing message
+        // Use existing message from database
         message = existingMessage;
         this.logger.log(
           `Using existing message ${message.id} to avoid duplicate`,
         );
+
+        // Build messageData from database result
+        messageData = {
+          id: message.id,
+          content: message.content,
+          type: message.type === 19 ? 'reply' : data.type || 'text',
+          createdAt: message.createdAt,
+          room: data.room,
+          author: {
+            id: message.author.id,
+            username: message.author.username,
+            avatar: message.author.avatar || '',
+          },
+        };
+
+        // Add reply information if message has references
+        if (message.referredBy && message.referredBy.length > 0) {
+          const reference = message.referredBy[0];
+          messageData.replyTo = {
+            id: reference.messageRef.id,
+            content: reference.messageRef.content,
+            author: reference.messageRef.author,
+          };
+        }
       } else {
         // Create new message using MessageService
-        message = await this.messageService.sendMessage(
+        const serviceResponse = await this.messageService.sendMessage(
           {
             content: data.message,
             channelId,
             mentionAuthor: false,
+            replyToMessageId: data.replyToMessageId,
           },
           client.user.sub,
         );
-        this.logger.log(`Created new message ${message.id}`);
+        this.logger.log(`Created new message ${serviceResponse.id}`);
+
+        // Use service response directly as it already has proper format
+        messageData = {
+          id: serviceResponse.id,
+          content: serviceResponse.content,
+          type: serviceResponse.type,
+          createdAt: serviceResponse.createdAt,
+          room: data.room,
+          author: serviceResponse.author,
+          replyTo: serviceResponse.replyTo,
+        };
       }
 
-      // Emit to room excluding the sender
-      const messageData: MessageData = {
-        id: message.id,
-        content: message.content,
-        type: data.type || 'text',
-        createdAt: message.createdAt,
-        room: data.room,
-        metadata: {
-          channelId,
-          channelName: message.channelName,
-          author: message.author,
-        },
-        author: {
-          id: message.author.id,
-          username: message.author.username,
-          avatar: message.author.avatar || '',
-        },
-      };
-
-      // Emit to room but exclude the sender
       this.emitToRoom(data.room, WEBSOCKET_EVENTS.MESSAGE, messageData, client);
 
       this.logger.log(
@@ -223,7 +254,7 @@ export class WebsocketGateway
 
       return {
         success: true,
-        data: { messageId: message.id },
+        data: { messageId: messageData.id },
         timestamp: new Date(),
       };
     } catch (error) {
