@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 
 @Injectable()
@@ -23,15 +23,48 @@ export class UploadsService {
     }
   }
 
-  async getImage(publicId: string) {
+  async uploadVideo(file: Express.Multer.File): Promise<{ url: string }> {
     try {
-      return await cloudinary.api.resource(publicId);
-    } catch (error) {
-      throw new Error(`Image not found: ${error.message}`);
+      // ✅ Kiểm tra loại file trước khi upload
+      if (!file.mimetype.startsWith('video/')) {
+        throw new BadRequestException(
+          `Invalid file type: ${file.mimetype}. Please upload a video file.`,
+        );
+      }
+
+      const result: UploadApiResponse = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            {
+              folder: 'videos',
+              resource_type: 'video',
+            },
+            (error, result) => {
+              if (error) return reject(error);
+              if (!result)
+                return reject(new Error('Upload failed: no result returned'));
+              resolve(result);
+            },
+          )
+          .end(file.buffer);
+      });
+
+      return { url: result.secure_url };
+    } catch (err) {
+      console.error('Video upload failed:', err);
+      throw err;
     }
   }
 
-  async deleteImage(publicId: string) {
-    return cloudinary.uploader.destroy(publicId);
+  async getResource(publicId: string) {
+    try {
+      return await cloudinary.api.resource(publicId, { resource_type: 'auto' });
+    } catch (error) {
+      throw new Error(`Resource not found: ${error.message}`);
+    }
+  }
+
+  async deleteResource(publicId: string) {
+    return cloudinary.uploader.destroy(publicId, { resource_type: 'auto' });
   }
 }
