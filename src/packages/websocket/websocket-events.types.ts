@@ -71,17 +71,18 @@ export interface LeftRoomData {
 export interface SendMessagePayload {
   room: string;
   message: string;
-  type?: 'text' | 'image' | 'file' | 'system';
+  type?: 'text' | 'image' | 'file' | 'system' | 'reply';
+  replyToMessageId?: string;
   metadata?: Record<string, any>;
 }
 
 export interface MessageData {
   id?: string;
   content: string;
-  type: 'text' | 'image' | 'file' | 'system';
+  type: 'text' | 'image' | 'file' | 'system' | 'reply';
   createdAt: Date;
   room?: string;
-  metadata?: Record<string, any>;
+  replyTo?: Record<string, any>;
   author?: {
     id: string;
     username: string;
