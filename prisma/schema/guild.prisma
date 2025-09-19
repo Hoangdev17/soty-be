@@ -243,7 +243,7 @@ model GuildJoinRequest {
  */
 model GuildRole {
   // The base 10 color of the role
-  color Int?
+  color String? @default("0")
 
   // The time the role was created at
   createAt DateTime @default(now())

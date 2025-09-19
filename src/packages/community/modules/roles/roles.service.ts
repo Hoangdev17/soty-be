@@ -128,7 +128,10 @@ export class RolesService {
     return roles;
   }
 
-  async assignRoleToMember(memberId: string, roleId: string) {
+  async assignRoleToMember(guildId: string, memberId: string, roleId: string) {
+    const cacheKey = `members:role:${guildId}:${roleId}`;
+    await this.cacheService.del(cacheKey);
+
     // Check if member already has this role
     const existingAssignment = await this.prisma.guildMemberRole.findFirst({
       where: {
@@ -157,12 +160,21 @@ export class RolesService {
       await this.cacheService.del(
         `community:${member.guildId}:user:${member.userId}:permissions`,
       );
+      // Also clear member roles cache
+      await this.cacheService.del(`member:${guildId}:${member.userId}:roles`);
     }
 
     return assignment;
   }
 
-  async removeRoleFromMember(memberId: string, roleId: string) {
+  async removeRoleFromMember(
+    guildId: string,
+    memberId: string,
+    roleId: string,
+  ) {
+    const cacheKey = `members:role:${guildId}:${roleId}`;
+    await this.cacheService.del(cacheKey);
+
     // Don't allow removing @everyone role
     const role = await this.prisma.guildRole.findUnique({
       where: { id: roleId },
@@ -187,6 +199,8 @@ export class RolesService {
       await this.cacheService.del(
         `community:${member.guildId}:user:${member.userId}:permissions`,
       );
+      // Also clear member roles cache
+      await this.cacheService.del(`member:${guildId}:${member.userId}:roles`);
     }
 
     return result;
@@ -255,5 +269,137 @@ export class RolesService {
     // Cache for 3 minutes
     await this.cacheService.set(cacheKey, roles, 180);
     return roles;
+  }
+
+  async getMembersWithRole(
+    guildId: string,
+    roleId?: string,
+    roleName?: string,
+  ) {
+    const cacheKey = `members:role:${guildId}:${roleId || roleName}`;
+
+    // Try cache first
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) {
+      console.log(`📋 getMembersWithRole: Cache hit for ${cacheKey}`);
+      return cached;
+    }
+
+    let whereCondition: any = {
+      member: {
+        guildId,
+      },
+    };
+
+    // Add role filter if provided
+    if (roleId) {
+      whereCondition.roleId = roleId;
+    } else if (roleName) {
+      whereCondition.role = {
+        name: roleName,
+      };
+    }
+
+    const memberRoles = await this.prisma.guildMemberRole.findMany({
+      where: whereCondition,
+      select: {
+        member: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                globalName: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const memberformat = memberRoles.map((mr) => mr.member);
+
+    // Cache for 3 minutes
+    await this.cacheService.set(cacheKey, memberformat, 180);
+
+    return memberformat;
+  }
+
+  async updateRolePositions(
+    guildId: string,
+    roles: { id: string; position: number }[],
+  ) {
+    // Validate that all roles belong to the guild
+    const roleIds = roles.map((r) => r.id);
+    const existingRoles = await this.prisma.guildRole.findMany({
+      where: {
+        id: { in: roleIds },
+        guildId,
+      },
+      select: { id: true, name: true },
+    });
+
+    if (existingRoles.length !== roleIds.length) {
+      const existingIds = existingRoles.map((r) => r.id);
+      const missingIds = roleIds.filter((id) => !existingIds.includes(id));
+      throw new Error(`Roles not found in guild: ${missingIds.join(', ')}`);
+    }
+
+    // Prevent updating @everyone role position
+    const everyoneRole = existingRoles.find((r) => r.name === '@everyone');
+    if (everyoneRole) {
+      const everyoneUpdate = roles.find((r) => r.id === everyoneRole.id);
+      if (everyoneUpdate && everyoneUpdate.position !== 0) {
+        throw new Error('Cannot change position of @everyone role');
+      }
+    }
+
+    // Update positions in a transaction to ensure consistency
+    const updatePromises = roles.map((role) =>
+      this.prisma.guildRole.update({
+        where: { id: role.id },
+        data: { position: role.position },
+      }),
+    );
+
+    const updatedRoles = await this.prisma.$transaction(updatePromises);
+
+    // Clear related cache
+    await this.cacheService.del(`roles:guild:${guildId}`);
+
+    return updatedRoles;
+  }
+
+  async clearRolesCache(guildId: string) {
+    // Clear various role-related caches
+    await this.cacheService.del(`roles:guild:${guildId}`);
+
+    // Clear member roles cache for all members in the guild
+    const members = await this.prisma.guildMember.findMany({
+      where: { guildId },
+      select: { userId: true },
+    });
+
+    for (const member of members) {
+      await this.cacheService.del(`member:${guildId}:${member.userId}:roles`);
+      await this.cacheService.del(
+        `community:${guildId}:user:${member.userId}:permissions`,
+      );
+    }
+
+    // Clear role-specific caches
+    const roles = await this.prisma.guildRole.findMany({
+      where: { guildId },
+      select: { id: true },
+    });
+
+    for (const role of roles) {
+      await this.cacheService.del(`role:${role.id}`);
+      await this.cacheService.del(`members:role:${guildId}:${role.id}`);
+    }
+
+    return { message: 'Cache cleared successfully' };
   }
 }

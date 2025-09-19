@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -24,6 +25,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { UpdateRolePositionsDto } from './dto/update-role-positions.dto';
 
 @ApiTags('Guild Roles')
 @Controller('community/:guildId/roles')
@@ -40,12 +42,16 @@ export class RolesController {
     return this.rolesService.getGuildRoles(guildId);
   }
 
-  @Get(':roleId')
-  @ApiOperation({ summary: 'Get role by ID' })
-  @ApiResponse({ status: 200, description: 'Role retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Role not found' })
-  getRoleById(@Param('roleId') roleId: string) {
-    return this.rolesService.getRoleById(roleId);
+  @Get('members')
+  @ApiOperation({ summary: 'Get members with specific role' })
+  @ApiResponse({ status: 200, description: 'Members retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Guild not found' })
+  getMembersWithRole(
+    @Param('guildId') guildId: string,
+    @Query('roleId') roleId?: string,
+    @Query('roleName') roleName?: string,
+  ) {
+    return this.rolesService.getMembersWithRole(guildId, roleId, roleName);
   }
 
   @Post()
@@ -58,6 +64,70 @@ export class RolesController {
     @Body() createRoleDto: CreateRoleDto,
   ) {
     return this.rolesService.createRole(guildId, createRoleDto);
+  }
+
+  @Patch('positions/update')
+  @ApiOperation({ summary: 'Update positions of multiple roles in guild' })
+  @ApiResponse({
+    status: 200,
+    description: 'Role positions updated successfully',
+  })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 400, description: 'Invalid request data' })
+  @RequireManageRoles()
+  updateRolePositions(
+    @Param('guildId') guildId: string,
+    @Body() updateRolePositionsDto: UpdateRolePositionsDto,
+  ) {
+    return this.rolesService.updateRolePositions(
+      guildId,
+      updateRolePositionsDto.roles,
+    );
+  }
+
+  @Post('assign')
+  @ApiOperation({ summary: 'Assign a role to a member' })
+  @ApiResponse({ status: 201, description: 'Role assigned successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Role or member not found' })
+  @ApiResponse({ status: 400, description: 'Member already has this role' })
+  @RequireManageRoles()
+  assignRole(
+    @Param('guildId') guildId: string,
+    @Body() assignRoleDto: AssignRoleDto,
+  ) {
+    return this.rolesService.assignRoleToMember(
+      guildId,
+      assignRoleDto.memberId,
+      assignRoleDto.roleId,
+    );
+  }
+
+  @Delete('remove')
+  @ApiOperation({ summary: 'Remove a role from a member' })
+  @ApiResponse({ status: 200, description: 'Role removed successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Role or member not found' })
+  @ApiResponse({ status: 400, description: 'Cannot remove @everyone role' })
+  @RequireManageRoles()
+  removeRole(
+    @Param('guildId') guildId: string,
+    @Body() assignRoleDto: AssignRoleDto,
+  ) {
+    return this.rolesService.removeRoleFromMember(
+      guildId,
+      assignRoleDto.memberId,
+      assignRoleDto.roleId,
+    );
+  }
+
+  @Delete('cache')
+  @ApiOperation({ summary: 'Clear roles cache for a guild' })
+  @ApiResponse({ status: 200, description: 'Cache cleared successfully' })
+  @RequireManageRoles()
+  clearRolesCache(@Param('guildId') guildId: string) {
+    console.log('🗑️ clearRolesCache called for guild:', guildId);
+    return this.rolesService.clearRolesCache(guildId);
   }
 
   @Patch(':roleId')
@@ -78,34 +148,10 @@ export class RolesController {
   @ApiResponse({ status: 200, description: 'Role deleted successfully' })
   @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   @ApiResponse({ status: 404, description: 'Role not found' })
-  @RequireAdministrator()
+  @ApiResponse({ status: 400, description: 'Cannot delete @everyone role' })
+  @RequireManageRoles()
   deleteRole(@Param('roleId') roleId: string) {
+    console.log('🗑️ deleteRole controller called:', { roleId });
     return this.rolesService.deleteRole(roleId);
-  }
-
-  @Post('assign')
-  @ApiOperation({ summary: 'Assign role to member' })
-  @ApiResponse({ status: 201, description: 'Role assigned successfully' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
-  @ApiResponse({ status: 404, description: 'Member or role not found' })
-  @RequireManageRoles()
-  assignRole(@Body() assignRoleDto: AssignRoleDto) {
-    return this.rolesService.assignRoleToMember(
-      assignRoleDto.memberId,
-      assignRoleDto.roleId,
-    );
-  }
-
-  @Delete('remove')
-  @ApiOperation({ summary: 'Remove role from member' })
-  @ApiResponse({ status: 200, description: 'Role removed successfully' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
-  @ApiResponse({ status: 404, description: 'Member or role not found' })
-  @RequireManageRoles()
-  removeRole(@Body() assignRoleDto: AssignRoleDto) {
-    return this.rolesService.removeRoleFromMember(
-      assignRoleDto.memberId,
-      assignRoleDto.roleId,
-    );
   }
 }

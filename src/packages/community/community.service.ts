@@ -67,11 +67,11 @@ export class CommunityService {
         position: 1,
         hoist: true,
         mentionable: true,
-        color: 0xff0000, // Red color for admin
+        color: '0xff0000', // Red color for admin
       },
     });
 
-    // Create guild member for owner and assign admin role
+    // Create guild member for owner
     const ownerMemberId = this.snowflake.generate();
     const ownerMember = await this.prisma.guildMember.create({
       data: {
@@ -79,6 +79,16 @@ export class CommunityService {
         guildId: guildId,
         userId,
         permissions: ['ADMINISTRATOR'],
+      },
+    });
+
+    //Assign @everyone role to owner
+    // Assign admin role to owner
+    await this.prisma.guildMemberRole.create({
+      data: {
+        id: this.snowflake.generate(),
+        memberId: ownerMemberId,
+        roleId: everyoneRoleId,
       },
     });
 
@@ -94,6 +104,10 @@ export class CommunityService {
     // Clear related cache after creating new community
     await this.cacheService.del('communities:all');
     await this.cacheService.del(`user:${userId}:communities`);
+    await this.cacheService.del(`community:${guildId}`);
+    await this.cacheService.del(`community:${guildId}:members`);
+    await this.cacheService.del(`roles:guild:${guildId}`);
+    await this.cacheService.del(`member:${guildId}:${userId}:roles`);
 
     return guild;
   }
