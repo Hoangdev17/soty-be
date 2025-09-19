@@ -32,7 +32,7 @@ export class UpdateRoleDto extends createZodDto(UpdateRoleSchema) {
     minimum: 0,
     maximum: 16777215,
   })
-  color?: number;
+  color?: string;
 
   @ApiProperty({
     description: 'Hiển thị thành viên riêng biệt trong danh sách',

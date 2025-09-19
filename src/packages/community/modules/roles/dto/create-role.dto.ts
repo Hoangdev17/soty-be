@@ -10,13 +10,7 @@ export const CreateRoleSchema = z.object({
     .max(100, 'Tên role không được quá 100 ký tự')
     .describe('Tên của role'),
   permissions: z.array(z.string()).describe('Danh sách quyền của role'),
-  color: z
-    .number()
-    .int()
-    .min(0)
-    .max(16777215)
-    .optional()
-    .describe('Màu của role (RGB)'),
+  color: z.string().min(7).max(7).optional().describe('Màu của role (RGB)'),
   hoist: z.boolean().default(false).describe('Hiển thị thành viên riêng biệt'),
   mentionable: z.boolean().default(false).describe('Cho phép mention role'),
 });
@@ -45,7 +39,7 @@ export class CreateRoleDto extends createZodDto(CreateRoleSchema) {
     minimum: 0,
     maximum: 16777215,
   })
-  color?: number;
+  color?: string;
 
   @ApiProperty({
     description: 'Hiển thị thành viên riêng biệt trong danh sách',
