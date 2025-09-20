@@ -23,13 +23,7 @@ import { ChannelsService } from './modules/channels/channels.service';
   ],
 
   controllers: [CommunityController],
-  providers: [
-    CommunityService,
-    PermissionsGuard,
-    PrismaService,
-    SnowflakeID,
-    ChannelsService,
-  ],
+  providers: [CommunityService, PermissionsGuard, PrismaService, SnowflakeID],
   exports: [
     CommunityService,
     PermissionsGuard,
@@ -37,7 +31,6 @@ import { ChannelsService } from './modules/channels/channels.service';
     PermissionsModule,
     MembersModule,
     ThreadsModule,
-    ChannelsService,
   ],
 })
 export class CommunityModule {}

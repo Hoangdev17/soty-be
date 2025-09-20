@@ -6,6 +6,7 @@ import { SnowflakeID } from '../../utils/snowflake';
 import { UpdateCommunityDto } from './dto/update-community.dto';
 import {
   GuildPermissions,
+  PERMISSION_NAMES,
   PermissionUtils,
 } from './constants/guild-permissions';
 import { ChannelType } from '@prisma/client';
@@ -61,7 +62,7 @@ export class CommunityService {
     const adminRole = await this.prisma.guildRole.create({
       data: {
         id: adminRoleId,
-        name: 'Admin',
+        name: 'ADMINISTRATOR',
         guildId: guildId,
         permissions: ['ADMINISTRATOR'],
         position: 1,
@@ -101,15 +102,76 @@ export class CommunityService {
       },
     });
 
+    // Create default categories and channels
+    await this.createDefaultChannels(guildId, userId);
+
     // Clear related cache after creating new community
     await this.cacheService.del('communities:all');
     await this.cacheService.del(`user:${userId}:communities`);
     await this.cacheService.del(`community:${guildId}`);
     await this.cacheService.del(`community:${guildId}:members`);
+    await this.cacheService.del(`community:${guildId}:channels`);
     await this.cacheService.del(`roles:guild:${guildId}`);
     await this.cacheService.del(`member:${guildId}:${userId}:roles`);
 
     return guild;
+  }
+
+  private async createDefaultChannels(guildId: string, userId: string) {
+    // 1. Create "Kênh Chat" category
+    const chatCategoryId = this.snowflake.generate();
+    const chatCategory = await this.prisma.guildChannel.create({
+      data: {
+        id: chatCategoryId,
+        name: 'Kênh Chat',
+        type: ChannelType.GUILD_CATEGORY,
+        guildId: guildId,
+        createdById: userId,
+        position: 0,
+      },
+    });
+
+    // 2. Create "Kênh Thoại" category
+    const voiceCategoryId = this.snowflake.generate();
+    const voiceCategory = await this.prisma.guildChannel.create({
+      data: {
+        id: voiceCategoryId,
+        name: 'Kênh Thoại',
+        type: ChannelType.GUILD_CATEGORY,
+        guildId: guildId,
+        createdById: userId,
+        position: 1,
+      },
+    });
+
+    // 3. Create default text channel in chat category
+    const generalTextChannelId = this.snowflake.generate();
+    await this.prisma.guildChannel.create({
+      data: {
+        id: generalTextChannelId,
+        name: 'general',
+        type: ChannelType.GUILD_TEXT,
+        guildId: guildId,
+        parentId: chatCategoryId,
+        createdById: userId,
+        position: 0,
+        topic: 'Kênh chat chung cho mọi thành viên',
+      },
+    });
+
+    // 4. Create default voice channel in voice category
+    const generalVoiceChannelId = this.snowflake.generate();
+    await this.prisma.guildChannel.create({
+      data: {
+        id: generalVoiceChannelId,
+        name: 'General',
+        type: ChannelType.GUILD_VOICE,
+        guildId: guildId,
+        parentId: voiceCategoryId,
+        createdById: userId,
+        position: 0,
+      },
+    });
   }
 
   async findAll() {
@@ -188,11 +250,23 @@ export class CommunityService {
         channels: {
           where: {
             deleted: false,
-            type: { in: [ChannelType.GUILD_TEXT, ChannelType.GUILD_VOICE] },
+            type: {
+              in: [
+                ChannelType.GUILD_CATEGORY,
+                ChannelType.GUILD_TEXT,
+                ChannelType.GUILD_VOICE,
+              ],
+            },
           },
+          orderBy: { position: 'asc' },
         },
         roles: {
           orderBy: { position: 'desc' },
+          include: {
+            members: {
+              select: { memberId: true },
+            },
+          },
         },
       },
     });
@@ -207,6 +281,7 @@ export class CommunityService {
   async update(id: string, updateCommunityDto: UpdateCommunityDto) {
     // Clear related cache
     await this.cacheService.del(`community:${id}`);
+    await this.cacheService.del(`community:${id}:channels`);
     await this.cacheService.del('communities:all');
 
     return this.prisma.guild.update({
@@ -218,6 +293,7 @@ export class CommunityService {
   async remove(id: string) {
     // Clear related cache
     await this.cacheService.del(`community:${id}`);
+    await this.cacheService.del(`community:${id}:channels`);
     await this.cacheService.del('communities:all');
 
     return this.prisma.guild.delete({
@@ -283,6 +359,7 @@ export class CommunityService {
     // Clear related cache
     await this.cacheService.del(`community:${communityId}`);
     await this.cacheService.del(`community:${communityId}:members`);
+    await this.cacheService.del(`community:${communityId}:channels`);
     await this.cacheService.del(`user:${userId}:communities`);
 
     return member;
@@ -334,6 +411,7 @@ export class CommunityService {
     // Clear related cache
     await this.cacheService.del(`community:${communityId}`);
     await this.cacheService.del(`community:${communityId}:members`);
+    await this.cacheService.del(`community:${communityId}:channels`);
     await this.cacheService.del(`user:${userId}:communities`);
     await this.cacheService.del(
       `community:${communityId}:user:${userId}:permissions`,

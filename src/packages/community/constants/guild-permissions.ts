@@ -186,9 +186,20 @@ export class PermissionUtils {
    * Get default permissions as String[]
    */
   static getDefaultPermissions(): string[] {
-    return this.bigIntToStringArray(
-      GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS,
-    );
+    return [
+      'VIEW_CHANNELS',
+      'SEND_MESSAGES',
+      'EMBED_LINKS',
+      'ATTACH_FILES',
+      'READ_MESSAGE_HISTORY',
+      'ADD_REACTIONS',
+      'USE_EXTERNAL_EMOJIS',
+      'CONNECT',
+      'SPEAK',
+      'USE_VAD',
+      'STREAM',
+      'USE_SLASH_COMMANDS',
+    ];
   }
 
   /**

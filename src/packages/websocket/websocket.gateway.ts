@@ -367,6 +367,7 @@ export class WebsocketGateway
         ...data,
         position: data.position ?? 0,
         viewAble: data.viewAble ?? true,
+        parentId: data.parentId,
       };
       const channel = await this.channelsService.createChannel(
         data.guildId,
@@ -392,6 +393,7 @@ export class WebsocketGateway
           viewAble: channel.viewAble,
           recipients: channel.recipients || undefined,
           maxMembers: channel.maxMembers || undefined,
+          parentId: channel.parentId || undefined,
           createdAt: channel.createdAt,
         },
         guildId: data.guildId,

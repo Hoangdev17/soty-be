@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CacheService } from 'src/core/cache/cache.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { UpdateChannelDto } from './dto/update-channel.dto';
 import { ChannelType, Prisma } from '@prisma/client';
+import { PermissionUtils } from '../../constants/guild-permissions';
+import { WebsocketGateway } from '../../../websocket/websocket.gateway';
 
 @Injectable()
 export class ChannelsService {
@@ -12,26 +14,108 @@ export class ChannelsService {
     private readonly prisma: PrismaService,
     private readonly snowflake: SnowflakeID,
     private readonly cacheService: CacheService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private readonly ws: WebsocketGateway,
   ) {}
+
+  async createCategory(
+    guildId: string,
+    createCategoryDto: { name: string; topic?: string; position?: number },
+    userId: string,
+  ) {
+    // Get the highest position for categories in this guild
+    const highestPosition = await this.prisma.guildChannel.findFirst({
+      where: {
+        guildId,
+        type: ChannelType.GUILD_CATEGORY,
+        deleted: false,
+      },
+      orderBy: { position: 'desc' },
+    });
+
+    const position =
+      createCategoryDto.position ?? (highestPosition?.position ?? -1) + 1;
+
+    const categoryId = this.snowflake.generate();
+    const category = await this.prisma.guildChannel.create({
+      data: {
+        id: categoryId,
+        name: createCategoryDto.name,
+        type: ChannelType.GUILD_CATEGORY,
+        guildId,
+        createdById: userId,
+        position,
+        topic: createCategoryDto.topic,
+      },
+    });
+    // Clear related cache
+    await this.cacheService.del(`community:${guildId}`);
+    await this.cacheService.del(`community:${guildId}:channels`);
+    await this.cacheService.del(`channels:guild:${guildId}`);
+
+    return category;
+  }
 
   async createChannel(
     guildId: string,
     createChannelDto: CreateChannelDto,
     userId: string,
   ) {
+    // Validate parentId if provided
+    if (createChannelDto.parentId) {
+      const parentCategory = await this.prisma.guildChannel.findFirst({
+        where: {
+          id: createChannelDto.parentId,
+          guildId,
+          type: ChannelType.GUILD_CATEGORY,
+          deleted: false,
+        },
+      });
+
+      if (!parentCategory) {
+        throw new Error('Category cha không tồn tại hoặc không hợp lệ');
+      }
+    }
+    // Get the highest position for channels in this category or guild
+    let position = createChannelDto.position;
+    if (position === undefined) {
+      const highestPosition = await this.prisma.guildChannel.findFirst({
+        where: {
+          guildId,
+          parentId: createChannelDto.parentId || null,
+          deleted: false,
+        },
+        orderBy: { position: 'desc' },
+      });
+      position = (highestPosition?.position ?? -1) + 1;
+    }
+
+    // Map string type to ChannelType enum
+    const channelType =
+      createChannelDto.type === 'GUILD_TEXT'
+        ? ChannelType.GUILD_TEXT
+        : ChannelType.GUILD_VOICE;
+
+    const channelId = this.snowflake.generate();
     const channel = await this.prisma.guildChannel.create({
       data: {
-        id: this.snowflake.generate(),
+        id: channelId,
+        name: createChannelDto.name,
+        type: channelType,
+        guildId,
+        parentId: createChannelDto.parentId,
         createdById: userId,
-        guildId: guildId,
-        ...createChannelDto,
+        position,
+        topic: createChannelDto.topic,
+        nsfw: createChannelDto.nsfw ?? false,
+        rateLimitPerUser: createChannelDto.rateLimitPerUser ?? 0,
       },
     });
 
-    // Clear channels cache for this guild
-    await this.cacheService.del(`channels:guild:${guildId}`);
-    // Also clear community cache since it includes channels
+    // Clear related cache
     await this.cacheService.del(`community:${guildId}`);
+    await this.cacheService.del(`community:${guildId}:channels`);
+    await this.cacheService.del(`channels:guild:${guildId}`);
 
     return channel;
   }

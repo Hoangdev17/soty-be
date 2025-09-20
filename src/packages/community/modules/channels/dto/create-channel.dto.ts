@@ -40,6 +40,7 @@ export const createChannelSchema = z.object({
     .max(99)
     .optional()
     .describe('Số lượng người dùng tối đa trong kênh thoại'),
+  parentId: z.string().optional().describe('ID của category cha (tùy chọn)'),
 });
 
 export class CreateChannelDto extends createZodDto(createChannelSchema) {
@@ -107,4 +108,11 @@ export class CreateChannelDto extends createZodDto(createChannelSchema) {
     required: false,
   })
   maxMembers?: number;
+
+  @ApiProperty({
+    example: '1234567890',
+    description: 'ID của category cha (tùy chọn)',
+    required: false,
+  })
+  parentId?: string;
 }
