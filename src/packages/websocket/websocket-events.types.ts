@@ -163,6 +163,7 @@ export interface CreateChannelPayload {
   viewAble?: boolean;
   recipients?: string[];
   maxMembers?: number;
+  parentId?: string;
 }
 
 export interface ChannelCreatedData {
@@ -178,6 +179,7 @@ export interface ChannelCreatedData {
     viewAble: boolean;
     recipients?: string[];
     maxMembers?: number;
+    parentId?: string;
     createdAt: Date;
   };
   guildId: string;

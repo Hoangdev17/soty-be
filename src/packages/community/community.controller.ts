@@ -13,8 +13,10 @@ import {
 import { CommunityService } from './community.service';
 import { MembersService } from './modules/members/members.service';
 import { PermissionsService } from './modules/permissions/permissions.service';
+import { ChannelsService } from './modules/channels/channels.service';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { JoinCommunityDto } from './dto/join-community.dto';
+import { UpdateCommunityDto } from './dto/update-community.dto';
 import { JwtAuthGuard } from '../../core/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import {
@@ -28,8 +30,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
-import { UpdateCommunityDto } from './dto/update-community.dto';
-import type { AuthenticatedRequest } from 'src/core/auth/dto/request-with-auth.dto';
+import type { AuthenticatedRequest } from '../../core/auth/dto/request-with-auth.dto';
 
 @ApiTags('Community')
 @Controller('community')
@@ -38,6 +39,7 @@ export class CommunityController {
     private readonly communityService: CommunityService,
     private readonly membersService: MembersService,
     private readonly permissionsService: PermissionsService,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   @Post()

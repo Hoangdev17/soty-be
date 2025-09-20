@@ -16,7 +16,7 @@ import { ChannelsModule } from '../community/modules/channels/channels.module';
     }),
     forwardRef(() => MessageModule),
     forwardRef(() => MembersModule),
-    ChannelsModule,
+    forwardRef(() => ChannelsModule),
   ],
   providers: [WebsocketGateway, PrismaService, MessageService, SnowflakeID],
   exports: [WebsocketGateway],

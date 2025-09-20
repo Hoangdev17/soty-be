@@ -12,6 +12,7 @@ import {
 import { ChannelsService } from './channels.service';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CreateChannelDto } from './dto/create-channel.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../guards/permissions.guard';
 import { RequireManageChannels } from '../../decorators/permission-shortcuts.decorator';
@@ -21,6 +22,25 @@ import type { AuthenticatedRequest } from '../../../../core/auth/dto/request-wit
 @Controller('channels')
 export class ChannelsController {
   constructor(private readonly channelService: ChannelsService) {}
+
+  @Post(':guildId/categories')
+  @ApiOperation({ summary: 'Create a new category in guild' })
+  @ApiResponse({ status: 201, description: 'Category created successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input or category name already exists',
+  })
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('access-token')
+  @RequireManageChannels()
+  createCategory(
+    @Param('guildId') guildId: string,
+    @Body() dto: CreateCategoryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.channelService.createCategory(guildId, dto, req.user.id);
+  }
 
   @Post(':guildId')
   @ApiOperation({ summary: 'Create a new channel in guild' })
