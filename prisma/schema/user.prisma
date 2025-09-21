@@ -92,7 +92,8 @@ model User {
   accentColor      String?                              // Màu profile dạng số (RGB integer)
   hexAccentColor   String?                           // Màu profile dạng hex (#RRGGBB)
   avatarEffectId String?                           // Hiệu ứng avatar (nếu có)
-  profileEffectId String?                           // Hiệu ứng profile (nếu có)
+  profileEffectId String?   
+  nameplateId String?                        // Hiệu ứng profile (nếu có)
 
   badges           Badge[]              // Danh sách huy hiệu (badge) của user
   premium          Premium?                          // Thông tin Premium/Nitro (tier, hết hạn…)

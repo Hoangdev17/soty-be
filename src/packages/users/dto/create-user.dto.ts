@@ -25,6 +25,7 @@ export const CreateUserSchema = z.object({
   hexAccentColor: z.string().optional().describe('Màu chủ đạo dạng hex'),
   avatarEffectId: z.string().optional().describe('Hiệu ứng avatar (nếu có)'),
   profileEffectId: z.string().optional().describe('Hiệu ứng profile (nếu có)'),
+  nameplateId: z.string().optional().describe('Hiệu ứng nameplate (nếu có)'),
 });
 
 // ========== DTO ==========
@@ -116,4 +117,11 @@ export class CreateUserDto extends createZodDto(CreateUserSchema) {
     required: false,
   })
   profileEffectId?: string;
+
+  @ApiProperty({
+    description: 'Hiệu ứng nameplate (nếu có)',
+    example: 'nameplate123',
+    required: false,
+  })
+  nameplateId?: string;
 }

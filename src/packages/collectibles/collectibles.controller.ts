@@ -103,12 +103,12 @@ export class CollectiblesController {
   @UseGuards(JwtAuthGuard)
   @ApiQuery({ name: 'assetType', required: false })
   async findAll(
-    @Query() query: PaginationDto,
+    @Query() pagination: PaginationDto,
     @Query('assetType') assetType: string,
     @Req() req: AuthenticatedRequest,
   ) {
     return await this.collectiblesService.findAll(
-      query,
+      pagination,
       assetType,
       req.user.id,
     );
@@ -158,8 +158,20 @@ export class CollectiblesController {
       'Filter by assetType (0: nameplate, 1: avatar, 2: profile_effect)',
     example: 1,
   })
-  @ApiQuery({ name: 'offset', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: Number,
+    description: 'Pagination offset',
+    example: 0,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Pagination limit',
+    example: 20,
+  })
   async getUserDecorations(
     @Req() req: AuthenticatedRequest,
     @Query('category') category?: string,
