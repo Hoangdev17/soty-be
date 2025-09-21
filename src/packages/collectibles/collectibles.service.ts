@@ -123,8 +123,8 @@ export class CollectiblesService {
       this.prisma.decoratorAsset.findMany({
         where: whereClause,
         orderBy: [{ [sortField]: sortOrder }, { id: 'desc' }],
-        skip,
-        take,
+        skip: offset,
+        take: limit,
       }),
       this.prisma.decoratorAsset.count({ where: whereClause }),
     ]);
