@@ -10,6 +10,7 @@ import { WebsocketModule } from './packages/websocket/websocket.module';
 import { MessageModule } from './packages/message/message.module';
 import { DmChannelModule } from './packages/dm/dm-channel.module';
 import { CoreCacheModule } from './core/cache/cache.module';
+import { CollectiblesModule } from './packages/collectibles/collectibles.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CoreCacheModule } from './core/cache/cache.module';
     MessageModule,
     DmChannelModule,
     WebsocketModule,
+    CollectiblesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

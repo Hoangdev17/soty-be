@@ -291,14 +291,25 @@ export class CommunityService {
   }
 
   async remove(id: string) {
-    // Clear related cache
+    // Delete channels in hierarchy order to avoid parent-child constraint violations
+    await this.prisma.guildChannel.deleteMany({
+      where: { guildId: id, parentId: { not: null } }, // Delete child channels first
+    });
+
+    await this.prisma.guildChannel.deleteMany({
+      where: { guildId: id }, // Then delete parent channels
+    });
+
     await this.cacheService.del(`community:${id}`);
     await this.cacheService.del(`community:${id}:channels`);
+    await this.cacheService.del(`community:${id}:members`);
     await this.cacheService.del('communities:all');
 
-    return this.prisma.guild.delete({
+    await this.prisma.guild.delete({
       where: { id },
     });
+
+    return { message: 'Community deleted successfully' };
   }
 
   async joinCommunity(communityId: string, userId: string) {

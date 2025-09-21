@@ -321,7 +321,7 @@ model GuildPermissionOverwrite {
 
   // The GuildChannel this overwrite is for
   channelId String
-  channel   GuildChannel @relation(fields: [channelId], references: [id])
+  channel   GuildChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   // The permissions that are denied for the user or role.
   deny String[]
@@ -338,7 +338,7 @@ model GuildPermissionOverwrite {
 
   // The Role this overwrite is for
   roleId String?
-  role   GuildRole? @relation(fields: [roleId], references: [id])
+  role   GuildRole? @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   // The type of this overwrite
   // PermissionOverwriteType
@@ -439,7 +439,7 @@ model GuildChannel {
 
   // The guild the channel is in
   guildId String
-  guild   Guild  @relation(fields: [guildId], references: [id])
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   messages          GuildMessage[]
   messageReferences GuildMessageReference[]
@@ -514,7 +514,7 @@ model GuildMessage {
 
   // The channel that the message was sent in
   channelId String
-  channel   GuildChannel @relation(fields: [channelId], references: [id])
+  channel   GuildChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   // The message contents with all mentions replaced by the equivalent text. If mentions cannot be resolved to a name, the relevant mention in the message content will not be converted.
   cleanContent String?
@@ -554,7 +554,7 @@ model GuildMessage {
 
   // Represents the author of the message as a guild member. Only available if the message comes from a guild where the author is still a member
   memberId String?
-  member   GuildMember? @relation(fields: [memberId], references: [id])
+  member   GuildMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   // All valid mentions that the message contains
   mentions GuildMessageMention[]
@@ -621,7 +621,7 @@ model PinnedMessage {
   pinnedById String // ai pin
   pinnedAt   DateTime @default(now())
 
-  message  GuildMessage @relation(fields: [messageId], references: [id])
+  message  GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
   pinnedBy User         @relation(fields: [pinnedById], references: [id])
 
   @@index([messageId])
@@ -633,7 +633,7 @@ model GuildMessageSticker {
   messageId String
   stickerId String
 
-  message        GuildMessage  @relation(fields: [messageId], references: [id])
+  message        GuildMessage  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   sticker        Sticker?      @relation(fields: [stickerId], references: [id])
   Guild          Guild?        @relation(fields: [guildId], references: [id])
   guildId        String?
@@ -671,15 +671,15 @@ model GuildMessageReference {
 
   // The message that the reference is to / replied to
   reference  String
-  messageRef GuildMessage @relation("ReferencedMessages", fields: [reference], references: [id])
+  messageRef GuildMessage @relation("ReferencedMessages", fields: [reference], references: [id], onDelete: Cascade)
 
   // The message that the reference is by
   referenceBy String
-  messageBy   GuildMessage @relation("ReferringMessages", fields: [referenceBy], references: [id])
+  messageBy   GuildMessage @relation("ReferringMessages", fields: [referenceBy], references: [id], onDelete: Cascade)
 
   // The channel that the reference is to
   channelId String
-  channel   GuildChannel @relation(fields: [channelId], references: [id])
+  channel   GuildChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   // The guild that the reference is to
   guildId String?
@@ -702,11 +702,11 @@ model GuildMessageMention {
   id String @id @map("_id")
 
   channelId String?
-  channel   GuildChannel? @relation(fields: [channelId], references: [id])
+  channel   GuildChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   // The message that the mention is in
   messageId String
-  message   GuildMessage @relation(fields: [messageId], references: [id])
+  message   GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   // The role that was mentioned
   roleId String?
@@ -782,7 +782,7 @@ model GuildMessageReaction {
 
   // The message that the reaction was on
   messageId String
-  message   GuildMessage @relation(fields: [messageId], references: [id])
+  message   GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   // A manager of the users that have given this reaction
   users GuildMessageReactionUser[]
@@ -803,7 +803,7 @@ model GuildMessageReactionUser {
 
   // The message that the reaction was on
   messageId String
-  message   GuildMessage @relation(fields: [messageId], references: [id])
+  message   GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   // The message reaction that the user reacted to
   reactionId String
@@ -837,7 +837,7 @@ model GuildAnimatedImage {
 
   // The ID of the guild this animated image belongs to
   guildId String
-  guild   Guild  @relation(fields: [guildId], references: [id])
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   // Whether the animated image can be deleted by the current user
   deletable Boolean @default(true)
@@ -999,7 +999,7 @@ model GuildSticker {
 
   // The guild that this sticker belongs to
   guildId String
-  guild   Guild  @relation(fields: [guildId], references: [id])
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   // The name of the sticker
   name String
@@ -1071,7 +1071,7 @@ model LeaderboardSnapshot {
   data      Json // [{userId, xp, level, rank}]
   createdAt DateTime @default(now())
 
-  guild Guild @relation(fields: [guildId], references: [id])
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@map("leaderboard_snapshots")
 }
@@ -1099,7 +1099,7 @@ model GuildModuleAccess {
   expiresAt  DateTime?
   grantedBy  String? // userId hoặc admin system
 
-  guild  Guild            @relation(fields: [guildId], references: [id])
+  guild  Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   module ModuleDefinition @relation(fields: [moduleId], references: [id])
 
   @@unique([guildId, moduleId])
@@ -1129,8 +1129,8 @@ model GuildXpLog {
   xpGained  Int
   createdAt DateTime @default(now())
 
-  guild  Guild       @relation(fields: [guildId], references: [id])
-  member GuildMember @relation(fields: [memberId], references: [id])
+  guild  Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member GuildMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([guildId, memberId])
   @@map("guild_xp_logs")
@@ -1143,7 +1143,7 @@ model GuildLevelReward {
   rewards   Json // [{ type: "coin", amount: 100 }, { type: "badge", id: "..." }]
   createdAt DateTime @default(now())
 
-  guild Guild @relation(fields: [guildId], references: [id])
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, level])
   @@map("guild_level_rewards")
@@ -1159,7 +1159,7 @@ model GuildMission {
   repeatable  Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  guild           Guild             @relation(fields: [guildId], references: [id])
+  guild           Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
   GuildMissionLog GuildMissionLog[]
 
   @@map("guild_missions")
@@ -1173,8 +1173,8 @@ model GuildMissionLog {
   completed   Boolean      @default(false)
   completedAt DateTime?
   logDate     DateTime?
-  mission     GuildMission @relation(fields: [missionId], references: [id])
-  member      GuildMember  @relation(fields: [memberId], references: [id])
+  mission     GuildMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  member      GuildMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([missionId, memberId, logDate])
   @@map("guild_mission_logs")
@@ -1190,7 +1190,7 @@ model GuildBadge {
   createdAt         DateTime           @default(now())
   isDefaultDuration Boolean            @default(false)
   defaultDuration   Int?
-  guild             Guild              @relation(fields: [guildId], references: [id])
+  guild             Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
   GuildMemberBadge  GuildMemberBadge[]
 
   @@map("guild_badges")
@@ -1203,7 +1203,7 @@ model GuildMemberBadge {
   grantedAt DateTime    @default(now())
   duration  Int?
   badge     GuildBadge  @relation(fields: [badgeId], references: [id])
-  member    GuildMember @relation(fields: [memberId], references: [id])
+  member    GuildMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([memberId, badgeId])
   @@map("guild_member_badges")
@@ -1220,7 +1220,7 @@ model GuildShopItem {
   itemConfig  Json?
   createdAt   DateTime @default(now())
 
-  guild                Guild                  @relation(fields: [guildId], references: [id])
+  guild                Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
   GuildMemberInventory GuildMemberInventory[]
 
   @@map("guild_shop_items")
@@ -1232,8 +1232,8 @@ model GuildMemberInventory {
   itemId   String
   quantity Int    @default(1)
 
-  member GuildMember   @relation(fields: [memberId], references: [id])
-  item   GuildShopItem @relation(fields: [itemId], references: [id])
+  member GuildMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  item   GuildShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@unique([memberId, itemId])
   @@map("guild_member_inventories")
@@ -1259,7 +1259,7 @@ model GuildModuleSetting {
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
 
-  guild  Guild            @relation(fields: [guildId], references: [id])
+  guild  Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   module ModuleDefinition @relation(fields: [moduleId], references: [id])
 
   @@unique([guildId, moduleId])
