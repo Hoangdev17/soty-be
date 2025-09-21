@@ -126,7 +126,6 @@ export class RolesController {
   @ApiResponse({ status: 200, description: 'Cache cleared successfully' })
   @RequireManageRoles()
   clearRolesCache(@Param('guildId') guildId: string) {
-    console.log('🗑️ clearRolesCache called for guild:', guildId);
     return this.rolesService.clearRolesCache(guildId);
   }
 
@@ -151,7 +150,6 @@ export class RolesController {
   @ApiResponse({ status: 400, description: 'Cannot delete @everyone role' })
   @RequireManageRoles()
   deleteRole(@Param('roleId') roleId: string) {
-    console.log('🗑️ deleteRole controller called:', { roleId });
     return this.rolesService.deleteRole(roleId);
   }
 }

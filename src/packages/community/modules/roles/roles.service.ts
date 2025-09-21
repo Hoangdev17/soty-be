@@ -281,7 +281,6 @@ export class RolesService {
     // Try cache first
     const cached = await this.cacheService.get(cacheKey);
     if (cached) {
-      console.log(`📋 getMembersWithRole: Cache hit for ${cacheKey}`);
       return cached;
     }
 

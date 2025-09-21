@@ -44,6 +44,10 @@ export const WEBSOCKET_EVENTS = {
   // Notification events
   NOTIFICATION: 'notification',
 
+  // Read receipts
+  CHANNEL_READ: 'channel_read',
+  READ_UPDATE: 'read_update',
+
   // Error events
   ERROR: 'error',
 } as const;
@@ -82,12 +86,25 @@ export interface MessageData {
   type: 'text' | 'image' | 'file' | 'system' | 'reply';
   createdAt: Date;
   room?: string;
+  channelId?: string;
+  channelName?: string;
+  guildId?: string;
+  guildName?: string;
   replyTo?: Record<string, any>;
   author?: {
     id: string;
     username: string;
     avatar: string;
   };
+  metadata: {
+    communityId?: string;
+  };
+}
+
+export interface ChannelReadPayload {
+  channelId: string;
+  userId: string;
+  lastRead?: Date; // optional timestamp client says they've read up to
 }
 
 export interface UserOnlineData {

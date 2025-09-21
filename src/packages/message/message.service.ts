@@ -68,6 +68,8 @@ export class MessageService {
           select: {
             id: true,
             name: true,
+            recipients: true,
+            guildId: true,
           },
         },
       },
@@ -90,11 +92,23 @@ export class MessageService {
     // Clear messages cache for this channel
     await this.clearChannelMessagesCache(channelId);
 
+    // Optionally fetch guild name only when guildId exists
+    let guildName = '';
+    if (message.channel.guildId) {
+      const guild = await this.prismaService.guild.findUnique({
+        where: { id: message.channel.guildId },
+        select: { name: true },
+      });
+      guildName = guild?.name ?? '';
+    }
+
     // Build response object
     const response: any = {
       id: message.id,
       content: message.content,
       createdAt: message.createdAt,
+      // Default status for recipients is UNREAD. Clients can interpret this string.
+      status: 'UNREAD',
       type: replyToMessageId ? 'reply' : 'text',
       room: `channel_${channelId}`,
       author: {
@@ -104,6 +118,8 @@ export class MessageService {
       },
       channelId: message.channel.id,
       channelName: message.channel.name,
+      guildId: message.channel.guildId || '',
+      guildName,
     };
 
     // Add reply information if this is a reply
@@ -113,6 +129,38 @@ export class MessageService {
         content: originalMessage.content,
         author: originalMessage.author,
       };
+    }
+
+    // If this channel has explicit recipients (DM / Group DM), emit the message
+    // directly to each user's personal room so they receive unread notifications.
+    try {
+      const recipients: string[] = (message.channel as any)?.recipients || [];
+      if (recipients && recipients.length > 0) {
+        for (const userId of recipients) {
+          // Skip emitting to sender's personal room as they are the sender
+          if (userId === authorId) {
+            // Optionally, mark sender's view as SEEN
+            const senderPayload = { ...response, status: 'SEEN' };
+            this.websocketGateway.emitToUser(
+              userId,
+              WEBSOCKET_EVENTS.MESSAGE,
+              senderPayload,
+            );
+            continue;
+          }
+
+          // For other recipients, send UNREAD
+          const recipientPayload = { ...response, status: 'UNREAD' };
+          this.websocketGateway.emitToUser(
+            userId,
+            WEBSOCKET_EVENTS.MESSAGE,
+            recipientPayload,
+          );
+        }
+      }
+    } catch (e) {
+      // don't block on websocket errors
+      // console.warn('Failed to emit direct message notifications', e);
     }
 
     return response;
@@ -523,5 +571,131 @@ export class MessageService {
     }
 
     return message;
+  }
+
+  // Upsert last-read per user per channel (persist to DB + update cache)
+  async setLastRead(
+    channelId: string,
+    userId: string,
+    lastReadMessageId?: string | null,
+  ) {
+    const now = new Date();
+
+    try {
+      // 1) Persist to DB (durable)
+      const upsertResult = await this.prismaService.channelLastRead.upsert({
+        where: { channelId_userId: { channelId, userId } },
+        update: {
+          lastReadMessageId: lastReadMessageId ?? null,
+          readAt: now,
+        },
+        create: {
+          id: this.snowflakeID.generate(),
+          channelId,
+          userId,
+          lastReadMessageId: lastReadMessageId ?? null,
+          readAt: now,
+        },
+      });
+
+      // 2) Update cache for fast reads (optional, keep TTL)
+      const key = `channel:${channelId}:user:${userId}:lastReadMessage`;
+      await this.cacheService.set(
+        key,
+        lastReadMessageId ?? null,
+        60 * 60 * 24 * 30,
+      );
+
+      return { channelId, userId, lastReadMessageId, readAt: now };
+    } catch (error) {
+      console.error(`[DEBUG] Error in setLastRead:`, error);
+      throw error;
+    }
+  }
+
+  // Get unread count for a user in a channel
+  async getUnreadCount(channelId: string, userId: string) {
+    // Always get fresh data from DB
+    const lastRead = await this.prismaService.channelLastRead.findUnique({
+      where: { channelId_userId: { channelId, userId } },
+      select: { lastReadMessageId: true, readAt: true },
+    });
+    const lastReadMessageId = lastRead?.lastReadMessageId ?? null;
+
+    let whereCondition: any = { channelId, deleted: false };
+
+    if (lastReadMessageId) {
+      whereCondition.id = { gt: lastReadMessageId };
+    }
+
+    const count = await this.prismaService.guildMessage.count({
+      where: whereCondition,
+    });
+
+    return { channelId, unreadCount: count };
+  }
+
+  // Get total unread count for a user in a community (all channels)
+  async getCommunityUnreadCount(guildId: string, userId: string) {
+    // Get all channels in the guild
+    const channels = await this.prismaService.guildChannel.findMany({
+      where: { guildId },
+      select: { id: true, name: true },
+    });
+
+    let totalUnread = 0;
+
+    // Sum unread count from each channel
+    for (const channel of channels) {
+      const { unreadCount } = await this.getUnreadCount(channel.id, userId);
+      totalUnread += unreadCount;
+    }
+
+    return { guildId, totalUnreadCount: totalUnread };
+  }
+
+  // Get unread count for each channel in a community
+  async getCommunityChannelsUnreadCount(guildId: string, userId: string) {
+    // Get all channels in the guild
+    const channels = await this.prismaService.guildChannel.findMany({
+      where: { guildId, type: 'GUILD_TEXT' },
+      select: { id: true, name: true },
+    });
+
+    const channelsUnread = await Promise.all(
+      channels.map(async (channel) => {
+        const { unreadCount } = await this.getUnreadCount(channel.id, userId);
+
+        return {
+          channelId: channel.id,
+          channelName: channel.name,
+          unreadCount,
+        };
+      }),
+    );
+
+    const totalUnread = channelsUnread.reduce(
+      (sum, ch) => sum + ch.unreadCount,
+      0,
+    );
+
+    return { guildId, channels: channelsUnread };
+  }
+
+  // Mark all messages in a channel as read for a user
+  async markChannelAsRead(channelId: string, userId: string) {
+    // Find the message with the highest ID in the channel (most recent)
+    const latestMessage = await this.prismaService.guildMessage.findFirst({
+      where: { channelId, deleted: false },
+      orderBy: { id: 'desc' }, // Order by ID desc to get the highest ID
+      select: { id: true },
+    });
+
+    const lastReadMessageId = latestMessage?.id ?? null;
+
+    // Call setLastRead with the latest message ID
+    const result = await this.setLastRead(channelId, userId, lastReadMessageId);
+
+    return result;
   }
 }
