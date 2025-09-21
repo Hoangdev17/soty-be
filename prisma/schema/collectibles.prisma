@@ -1,0 +1,42 @@
+model DecoratorAsset {
+    id          String    @id @map("_id")
+    assetType   Int // 0: nameplate; 1: avatarDecoration; 2: profile_effects
+    name        String? // Có thể null nếu không có name (vd: nameplate)
+    description String?
+    price       Float     @default(0)
+    salePrice   Float     @default(0)
+    metadata    Json
+    expiresAt   DateTime?
+    isDeleted   Boolean   @default(false)
+    deletedAt   DateTime?
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    collections DecoratorCollection[]
+    User        User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId      String?
+
+    @@index([name])
+    @@index([assetType, price])
+    @@map("decorator_asset")
+}
+
+model DecoratorCollection {
+    id     String @id @map("_id")
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    assetId String?
+    asset   DecoratorAsset? @relation(fields: [assetId], references: [id])
+
+    isActive      Boolean   @default(false)
+    purchasePrice Float
+    acquiredAt    DateTime  @default(now())
+    expiresAt     DateTime?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([userId, assetId])
+    @@map("decorator_collection")
+}
