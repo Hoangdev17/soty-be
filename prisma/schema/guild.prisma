@@ -494,6 +494,12 @@ enum GuildMessageType {
   GUILD_APPLICATION_PREMIUM_SUBSCRIPTION // 32
 }
 
+enum GUILD_MESSAGE_STATUS {
+  UNREAD
+  READ
+  SEEN
+}
+
 model GuildMessage {
   // A collection of attachments in the message - e.g. Pictures - mapped by their ids. This property requires the GatewayIntentBits.MessageContent privileged intent in a guild for messages that do not mention the client.
   // TODO: Attachment
@@ -586,6 +592,12 @@ model GuildMessage {
 
   // The id of the webhook that sent the message, if applicable
   webhookId String?
+
+  // The read status of the message for the current user/device
+  // UNREAD = user hasn't opened the message yet
+  // READ = user opened the message (viewed content)
+  // SEEN = user has seen the message in a list/preview
+  status GUILD_MESSAGE_STATUS @default(UNREAD)
 
   reactionUsers GuildMessageReactionUser[]
 
@@ -1252,4 +1264,15 @@ model GuildModuleSetting {
 
   @@unique([guildId, moduleId])
   @@map("guild_module_setting")
+}
+
+model ChannelLastRead {
+  id               String   @id @map("_id") @default(cuid())
+  channelId        String
+  userId           String
+  lastReadMessageId String?
+  readAt           DateTime @default(now())
+
+  @@unique([channelId, userId])
+  @@map("channel_last_read")
 }

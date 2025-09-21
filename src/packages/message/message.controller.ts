@@ -43,6 +43,38 @@ export class MessageController {
     return this.messageService.getMessages(channelId, limit, offset);
   }
 
+  @Get('channels/:channelId/unread-count')
+  @UseGuards(JwtAuthGuard)
+  async getChannelUnreadCount(
+    @Param('channelId') channelId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
+    return this.messageService.getUnreadCount(channelId, userId);
+  }
+
+  @Get('communities/:guildId/unread-count')
+  @UseGuards(JwtAuthGuard)
+  async getCommunityUnreadCount(
+    @Param('guildId') guildId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
+    return this.messageService.getCommunityUnreadCount(guildId, userId);
+  }
+
+  @Get('communities/:guildId/channels-unread-count')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get unread count for each channel in a community' })
+  async getCommunityChannelsUnreadCount(
+    @Param('guildId') guildId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
+    return this.messageService.getCommunityChannelsUnreadCount(guildId, userId);
+  }
+
   @Put(':messageId/pin')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
@@ -103,5 +135,17 @@ export class MessageController {
   @ApiOperation({ summary: 'Get message with its replies' })
   async getMessageWithReplies(@Param('messageId') messageId: string) {
     return this.messageService.getMessageWithReplies(messageId);
+  }
+
+  @Post(':channelId/read')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Mark messages in channel as read' })
+  async markChannelAsRead(
+    @Param('channelId') channelId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
+    return this.messageService.markChannelAsRead(channelId, userId);
   }
 }

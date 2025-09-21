@@ -12,6 +12,7 @@ import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { CacheService } from '../../core/cache/cache.service';
 import { MessageService } from '../message/message.service';
 import { MembersService } from '../community/modules/members/members.service';
 import { ChannelsService } from '../community/modules/channels/channels.service';
@@ -61,6 +62,7 @@ export class WebsocketGateway
     private readonly membersService: MembersService,
     @Inject(forwardRef(() => ChannelsService))
     private readonly channelsService: ChannelsService,
+    private readonly cacheService: CacheService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -171,7 +173,14 @@ export class WebsocketGateway
         },
         include: {
           author: true,
-          channel: true,
+          channel: {
+            select: {
+              id: true,
+              name: true,
+              guildId: true,
+              guild: { select: { id: true, name: true } },
+            },
+          },
           referredBy: {
             include: {
               messageRef: {
@@ -200,21 +209,29 @@ export class WebsocketGateway
 
         // Build messageData from database result
         messageData = {
-          id: message.id,
-          content: message.content,
-          type: message.type === 19 ? 'reply' : data.type || 'text',
-          createdAt: message.createdAt,
+          id: existingMessage.id,
+          content: existingMessage.content,
+          type: existingMessage.type === 19 ? 'reply' : data.type || 'text',
+          createdAt: existingMessage.createdAt,
           room: data.room,
+          channelId: existingMessage.channel.id,
+          channelName: existingMessage.channel.name,
+          guildId: existingMessage.channel.guildId,
+          guildName: existingMessage.channel.guild.name,
           author: {
-            id: message.author.id,
-            username: message.author.username,
-            avatar: message.author.avatar || '',
+            id: existingMessage.author.id,
+            username: existingMessage.author.username,
+            avatar: existingMessage.author.avatar || '',
           },
+          metadata: { communityId: existingMessage.channel.guildId },
         };
 
         // Add reply information if message has references
-        if (message.referredBy && message.referredBy.length > 0) {
-          const reference = message.referredBy[0];
+        if (
+          existingMessage.referredBy &&
+          existingMessage.referredBy.length > 0
+        ) {
+          const reference = existingMessage.referredBy[0];
           messageData.replyTo = {
             id: reference.messageRef.id,
             content: reference.messageRef.content,
@@ -232,6 +249,7 @@ export class WebsocketGateway
           },
           client.user.sub,
         );
+
         this.logger.log(`Created new message ${serviceResponse.id}`);
 
         // Use service response directly as it already has proper format
@@ -241,12 +259,60 @@ export class WebsocketGateway
           type: serviceResponse.type,
           createdAt: serviceResponse.createdAt,
           room: data.room,
+          channelId: serviceResponse.channelId,
+          channelName: serviceResponse.channelName,
+          guildId: serviceResponse.guildId,
+          guildName: serviceResponse.guildName,
           author: serviceResponse.author,
           replyTo: serviceResponse.replyTo,
+          metadata: { communityId: serviceResponse.guildId },
         };
       }
 
+      console.log('Emitting message data:', messageData);
+
       this.emitToRoom(data.room, WEBSOCKET_EVENTS.MESSAGE, messageData, client);
+      // Extract communityId from channelId to emit to community
+      const channel = await this.prismaService.guildChannel.findUnique({
+        where: { id: channelId },
+        select: { guildId: true, recipients: true },
+      });
+
+      if (channel) {
+        this.emitToRoom(
+          `community_${channel.guildId}`,
+          WEBSOCKET_EVENTS.MESSAGE,
+          messageData,
+          client,
+        );
+
+        // Emit to all guild members or recipients excluding sender
+        if (channel.guildId) {
+          // Guild channel: emit to all members
+          const members = await this.prismaService.guildMember.findMany({
+            where: { guildId: channel.guildId },
+            select: { userId: true },
+          });
+          for (const member of members) {
+            if (member.userId !== client.user.sub) {
+              this.emitToUser(
+                member.userId,
+                WEBSOCKET_EVENTS.MESSAGE,
+                messageData,
+              );
+
+              this.logger.log(`Emitted message to user ${member.userId}`);
+            }
+          }
+        } else if (channel.recipients && channel.recipients.length > 0) {
+          // DM/Group DM: emit to recipients
+          for (const userId of channel.recipients) {
+            if (userId !== client.user.sub) {
+              this.emitToUser(userId, WEBSOCKET_EVENTS.MESSAGE, messageData);
+            }
+          }
+        }
+      }
 
       this.logger.log(
         `Message sent to room ${data.room} by user ${client.user.sub}`,
@@ -262,6 +328,107 @@ export class WebsocketGateway
       return {
         success: false,
         error: { code: 'INTERNAL_ERROR', message: 'Failed to send message' },
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.CHANNEL_READ)
+  async handleChannelRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: { channelId: string; lastReadMessageId?: string; lastRead?: string },
+  ): Promise<WebSocketResponse<{ channelId?: string }>> {
+    if (!client.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      // Always use markChannelAsRead to get the latest message ID instead of trusting client
+      await this.messageService.markChannelAsRead(
+        data.channelId,
+        client.user.sub,
+      );
+
+      this.logger.log(
+        `Channel read updated in DB for channel ${data.channelId} by user ${client.user.sub}`,
+      );
+
+      // Get the actual lastReadMessageId that was set
+      const lastRead = await this.prismaService.channelLastRead.findUnique({
+        where: {
+          channelId_userId: {
+            channelId: data.channelId,
+            userId: client.user.sub,
+          },
+        },
+        select: { lastReadMessageId: true },
+      });
+
+      const payload = {
+        channelId: data.channelId,
+        userId: client.user.sub,
+        lastReadMessageId: lastRead?.lastReadMessageId ?? null,
+        lastRead: data.lastRead ? new Date(data.lastRead) : new Date(),
+      };
+
+      // Broadcast to channel excluding sender
+      this.emitToRoom(
+        `channel_${data.channelId}`,
+        WEBSOCKET_EVENTS.READ_UPDATE,
+        payload,
+      );
+
+      // Emit to all guild members or recipients excluding sender
+      const channel = await this.prismaService.guildChannel.findUnique({
+        where: { id: data.channelId },
+        select: { guildId: true, recipients: true },
+      });
+
+      if (channel) {
+        if (channel.guildId) {
+          // Guild channel: emit to all members
+          const members = await this.prismaService.guildMember.findMany({
+            where: { guildId: channel.guildId },
+            select: { userId: true },
+          });
+          for (const member of members) {
+            if (member.userId !== client.user.sub) {
+              this.emitToUser(
+                member.userId,
+                WEBSOCKET_EVENTS.READ_UPDATE,
+                payload,
+              );
+            }
+          }
+        } else if (channel.recipients && channel.recipients.length > 0) {
+          // DM/Group DM: emit to recipients
+          for (const userId of channel.recipients) {
+            if (userId !== client.user.sub) {
+              this.emitToUser(userId, WEBSOCKET_EVENTS.READ_UPDATE, payload);
+            }
+          }
+        }
+      }
+
+      this.logger.log(
+        `Channel read updated for channel ${data.channelId} by user ${client.user.sub}`,
+      );
+
+      return {
+        success: true,
+        data: { channelId: data.channelId },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error handling channel read: ${error.message}`);
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to process read' },
         timestamp: new Date(),
       };
     }
