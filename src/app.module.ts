@@ -11,6 +11,9 @@ import { MessageModule } from './packages/message/message.module';
 import { DmChannelModule } from './packages/dm/dm-channel.module';
 import { CoreCacheModule } from './core/cache/cache.module';
 import { CollectiblesModule } from './packages/collectibles/collectibles.module';
+import { SepayModule } from './packages/sepay/sepay.module';
+import { NitroModule } from './packages/nitro/nitro.module';
+import { BoostModule } from './packages/boost/boost.module';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { CollectiblesModule } from './packages/collectibles/collectibles.module'
     DmChannelModule,
     WebsocketModule,
     CollectiblesModule,
+    SepayModule,
+    NitroModule,
+    BoostModule,
   ],
   controllers: [AppController],
   providers: [AppService],

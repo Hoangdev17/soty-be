@@ -9,6 +9,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { MembersModule } from './modules/members/members.module';
 import { ThreadsModule } from './modules/threads/threads.module';
+import { EventsModule } from './modules/events/events.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { ChannelsService } from './modules/channels/channels.service';
 
@@ -20,6 +21,7 @@ import { ChannelsService } from './modules/channels/channels.service';
     PermissionsModule,
     MembersModule,
     ThreadsModule,
+    EventsModule,
   ],
 
   controllers: [CommunityController],
@@ -31,6 +33,7 @@ import { ChannelsService } from './modules/channels/channels.service';
     PermissionsModule,
     MembersModule,
     ThreadsModule,
+    EventsModule,
   ],
 })
 export class CommunityModule {}

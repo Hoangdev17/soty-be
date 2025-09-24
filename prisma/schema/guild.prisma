@@ -94,6 +94,9 @@ model Guild {
 
   boosts GuildBoost[]
 
+  // Guild level based on boosts
+  level Int @default(0) // Level tính từ số boosts
+
   visibility         GUILD_VISIBILITY        @default(PUBLIC)
   members            GuildMember[]
   messageReferences  GuildMessageReference[]
@@ -102,6 +105,9 @@ model Guild {
   stickers           GuildMessageSticker[]
   GuildAnimatedImage GuildAnimatedImage[]
   GuildMemberBanned  GuildMemberBanned[]
+
+  // Nitro assignments for this guild
+  nitros             GuildNitro[]
 
   Wallet              Wallet[]
   GuildJoinRequest    GuildJoinRequest[]
@@ -445,8 +451,6 @@ model GuildChannel {
   messageReferences GuildMessageReference[]
   messageMentions   GuildMessageMention[]
 
-  // a manager donations that belong to this channel (thread)
-  donations Donation[] @relation("ThreadDonation")
 
   // a manager notifications that belong to this channel (thread)
   // notifications           Notification[]
@@ -455,6 +459,7 @@ model GuildChannel {
 
   @@index([guildId, parentId])
   @@map("guild_channels")
+  GuildEvent GuildEvent[]
 }
 
 /**
@@ -861,32 +866,43 @@ model GuildEvent {
   /// Event entity for scheduling and managing time-based activities in the community
   /// Unique identifier for the event (MongoDB ObjectId)
   id        String    @id @map("_id")
-  /// Indicates if the event has been soft deleted
+  /// Soft delete flag
   deleted   Boolean   @default(false)
-  /// Indicates if the event can be deleted by users
+  /// Whether the event can be deleted by users
   deletable Boolean   @default(true)
-  /// Start date and time of the event
-  start     DateTime
-  /// Optional end date and time of the event
-  end       DateTime?
+
   /// Title/name of the event
   title     String
-  /// Optional detailed description of the event
-  content   String?
+  /// Optional detailed description of the event (front-end uses `description`)
+  description   String?
+  imgUrl       String?
+
+  /// Start and end (front-end uses `startAt`/`endAt`)
+  startAt   DateTime
+  startTime String?
+  endAt     DateTime?
 
   /// Indicates if the event lasts the entire day
-  allDay Boolean? @default(false)
+  allDay    Boolean? @default(false)
 
   /// Time zone in which the event occurs
   timeZone   String?
+
   /// Platform used for the event (Zoom, Teams, etc.)
   platform   String?
   /// URL for joining virtual meetings
   meetingUrl String?
+
   /// Number of users attending the event
   attendees  Int      @default(0)
   /// Indicates if reminders should be sent for this event
   remind     Boolean? @default(false)
+
+  /// Frequency string from frontend (e.g. none, once, daily, weekly, monthly)
+  frequency String?
+  /// If the event is associated with a channel, store channelId
+  channelId String?
+  channel  GuildChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   /// ID of the guild/community this event belongs to
   guildId String
@@ -907,7 +923,7 @@ model GuildEvent {
   // The metadata of the event
   metadata Json?
 
-  @@index([start, end, guildId])
+  @@index([startAt, endAt, guildId])
   @@index([guildId])
   @@map("guild_events")
 }
@@ -930,9 +946,7 @@ model GuildSubscriptionListing {
 
   metadata Json?
 
-  subscriptionPlans SubscriptionPlan[]
   roleBenefits      GuildRoleBenefit?
-  userSubscriptions UserSubscription[]
 
   @@map("guild_subscription_listings")
 }
@@ -1114,7 +1128,6 @@ model SubscriptionModuleAccess {
   expiresAt          DateTime?
   unlockStatus       Int       @default(0) // 0 = ACTIVE, 1 = EXPIRED, 2 = REVOKED
 
-  userSubscription UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
   module           ModuleDefinition @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@unique([userSubscriptionId, moduleId])

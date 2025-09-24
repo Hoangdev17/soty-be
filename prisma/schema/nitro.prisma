@@ -1,0 +1,107 @@
+// Nitro model: global system-wide Nitro configurations available to all communities
+model Nitro {
+  id          String   @id @map("_id")
+  // Human-friendly name (e.g. "Nitro Classic", "Nitro Boost")
+  name        String
+  // Optional internal SKU/code
+  sku         String?  @unique
+  // Short description
+  description String?
+
+  // Price in the main currency (float). For subscription-based nitro this can be the recurring price.
+  price       Float    @default(0)
+
+  // Duration in days. If null, it's treated as a one-time/permanent product or non-time-based.
+  durationDays Int?
+
+  // Whether this Nitro entry is active (available for purchase/grant)
+  isActive    Boolean  @default(true)
+
+  // Arbitrary JSON metadata (features, entitlements, limits, external ids, etc.)
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Assignments linking this Nitro to guilds
+  guildAssignments GuildNitro[]
+
+  // Payments for purchasing this Nitro
+  payments Payment[] @relation("NitroPayment")
+
+  @@map("nitros")
+}
+
+// Mapping between a Guild and a Nitro offering.
+// Stores assignment info (which guild has which nitro, when assigned, expiry, etc.)
+model GuildNitro {
+  id        String   @id @map("_id")
+
+  guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  nitroId   String
+  nitro     Nitro    @relation(fields: [nitroId], references: [id], onDelete: Cascade)
+
+  // When the nitro was assigned to the guild
+  assignedAt DateTime @default(now())
+
+  // Optional expiry; null = permanent/indefinite
+  expiresAt DateTime?
+
+  // Whether this assignment is active
+  isActive  Boolean  @default(true)
+
+  // Optional metadata per assignment (e.g., limit, custom config)
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, nitroId])
+  @@map("guild_nitros")
+}
+
+// Model cho hành động boost (user boosts globally)
+model Boost {
+  id        String   @id @map("_id")
+
+  // Số Nitro (gems) tiêu thụ để upgrade boost (0 = free default)
+  nitroUsed Int      @default(0)
+
+  // Level hoặc perks của boost (nâng cấp bằng Nitro)
+  level     Int      @default(1) // 1 = default, cao hơn = upgraded
+  perks     Json?    // E.g., {"extra_emojis": true, "priority": true}
+
+  // Khi boost được kích hoạt
+  boostedAt DateTime @default(now())
+  // Optional expiry (dài hơn nếu upgrade)
+  expiresAt DateTime?
+
+  // Metadata
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("boosts")
+  Payment Payment[] @relation("BoostPayment")
+}
+
+// Model cho Nitro như currency (gems) sở hữu bởi user
+model UserNitro {
+  id        String   @id @map("_id")
+  userId    String   @unique // Mỗi user có một record
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Tổng số Nitro (gems) user sở hữu
+  balance   Int      @default(0)
+
+  // Lịch sử mua (optional, hoặc dùng transaction log)
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_nitros")
+}
