@@ -56,4 +56,13 @@ export class UsersController {
   async delete(@Body() dto: UpdateUserDto, @Req() req: AuthenticatedRequest) {
     return await this.usersService.deleteUser(req.user.id);
   }
+
+  @Get('gems')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Lấy số dư gems của người dùng hiện tại' })
+  async getGems(@Req() req: AuthenticatedRequest) {
+    const gems = await this.usersService.fetchUserGems(req.user.id);
+    return { gems };
+  }
 }

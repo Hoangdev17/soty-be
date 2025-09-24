@@ -124,12 +124,10 @@ model User {
   GuildSticker GuildSticker[]
   GuildBoost GuildBoost[]
   Wallet Wallet[]
-  Donation Donation[] @relation("DonorUser")
-  DonationRecipent Donation[] @relation("RecipientUser")
-  Payout Payout[]
-  UserSubscription UserSubscription[]
-  Payment Payment[] 
+  Payment Payment[]
   
+  nitro UserNitro?
+
   @@index([id, email])
   @@map("user")  
   GuildChannel GuildChannel[]

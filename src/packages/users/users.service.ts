@@ -141,4 +141,11 @@ export class UsersService {
     // Optionally remove other heavy or sensitive fields
     return safe;
   }
+
+  async fetchUserGems(userId: string) {
+    const userNitro = await this.prisma.userNitro.findUnique({
+      where: { userId },
+    });
+    return userNitro?.balance || 0;
+  }
 }

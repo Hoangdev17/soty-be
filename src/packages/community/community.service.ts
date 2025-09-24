@@ -268,6 +268,7 @@ export class CommunityService {
             },
           },
         },
+        events: true,
       },
     });
 
