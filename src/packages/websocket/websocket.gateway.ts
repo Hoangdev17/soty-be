@@ -628,4 +628,276 @@ export class WebsocketGateway
   broadcastToCommunity(communityId: string, event: string, data: any) {
     this.emitToRoom(`community_${communityId}`, event, data);
   }
+
+  // Voice channel events
+  @SubscribeMessage('join-room')
+  async handleJoinRoomVoice(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string; communityId?: string },
+  ): Promise<WebSocketResponse<{ roomId: string }>> {
+    client.join(data.roomId);
+    this.logger.log(`Client ${client.id} joined voice room: ${data.roomId}`);
+    // Get existing users in room (socket ids excluding the joining client)
+    const room = this.server.sockets.adapter.rooms.get(data.roomId);
+    const socketIds = room
+      ? Array.from(room).filter((id) => id !== client.id)
+      : [];
+
+    let users: Array<any> = [];
+    if (socketIds.length > 0) {
+      // Build map socketId -> userId and collect userIds to fetch from DB
+      const socketToUserId = new Map<string, string | null>();
+      const userIdsToFetch = new Set<string>();
+      for (const socketId of socketIds) {
+        const sock = this.server.sockets.sockets.get(socketId) as
+          | Socket
+          | undefined;
+        const uid = (sock?.user as any)?.sub ?? null;
+        socketToUserId.set(socketId, uid);
+        if (uid) userIdsToFetch.add(uid);
+      }
+
+      // Try cache first, then DB for missing profiles
+      const profileMap = new Map<
+        string,
+        {
+          id: string;
+          username?: string;
+          avatar?: string | null;
+          banner?: string | null;
+        }
+      >();
+      if (userIdsToFetch.size > 0) {
+        const ids = Array.from(userIdsToFetch);
+        let missingIds = ids;
+        if (this.cacheService) {
+          const cached = await Promise.all(
+            ids.map((id) => this.cacheService.get(`user_profile_${id}`)),
+          );
+          missingIds = [];
+          cached.forEach((val, i) => {
+            if (val) profileMap.set(ids[i], val);
+            else missingIds.push(ids[i]);
+          });
+        }
+
+        if (missingIds.length > 0) {
+          const profiles = await this.prismaService.user.findMany({
+            where: { id: { in: missingIds } },
+            select: { id: true, username: true, avatar: true, banner: true },
+          });
+          for (const p of profiles) {
+            profileMap.set(p.id, p);
+            if (this.cacheService) {
+              await this.cacheService.set(`user_profile_${p.id}`, p, 60 * 5);
+            }
+          }
+        }
+      }
+
+      // Build user objects for existing sockets
+      users = socketIds.map((socketId) => {
+        const sock = this.server.sockets.sockets.get(socketId) as
+          | Socket
+          | undefined;
+        const userPartial = sock?.user as any | undefined;
+        const uid = socketToUserId.get(socketId) ?? null;
+        const profile = uid ? profileMap.get(uid) : undefined;
+
+        return {
+          socketId,
+          id: uid ?? null,
+          username: userPartial?.username ?? profile?.username ?? null,
+          avatar: userPartial?.avatar ?? profile?.avatar ?? null,
+          banner: userPartial?.banner ?? profile?.banner ?? null,
+        };
+      });
+
+      // Send existing users to the new client
+      client.emit('room-users', { users });
+    }
+
+    // Notify existing users about new client with metadata (so FE can show new user immediately)
+    const newUserPartial = client.user as any | undefined;
+    let newUserProfile:
+      | {
+          id: string;
+          username?: string;
+          avatar?: string | null;
+          banner?: string | null;
+        }
+      | undefined;
+    if (client.user?.sub) {
+      // try cache
+      if (this.cacheService) {
+        newUserProfile =
+          (await this.cacheService.get(`user_profile_${client.user.sub}`)) ??
+          undefined;
+      }
+      if (!newUserProfile) {
+        const p = await this.prismaService.user.findUnique({
+          where: { id: client.user.sub },
+          select: { id: true, username: true, avatar: true, banner: true },
+        });
+        if (p) {
+          newUserProfile = p;
+          if (this.cacheService)
+            await this.cacheService.set(`user_profile_${p.id}`, p, 60 * 5);
+        }
+      }
+    }
+
+    const newUserMeta = {
+      socketId: client.id,
+      id: client.user?.sub ?? null,
+      username: newUserPartial?.username ?? newUserProfile?.username ?? null,
+      avatar: newUserPartial?.avatar ?? newUserProfile?.avatar ?? null,
+      banner: newUserPartial?.banner ?? newUserProfile?.banner ?? null,
+    };
+
+    client.to(data.roomId).emit('user-joined', { user: newUserMeta });
+
+    // Broadcast presence to community subscribers if communityId provided
+    if (data.communityId) {
+      // include the joining user so subscribers see the updated full list
+      const usersAfter = [newUserMeta, ...users];
+      const usersCount = usersAfter.length;
+      this.broadcastToCommunity(data.communityId, 'channel-presence', {
+        roomId: data.roomId,
+        usersCount,
+        users: usersAfter,
+      });
+
+      this.logger.log(
+        `Broadcasted presence for room ${data.roomId} in community ${data.communityId}: ${usersCount} users`,
+      );
+    }
+
+    return {
+      success: true,
+      data: { roomId: data.roomId },
+      timestamp: new Date(),
+    };
+  }
+
+  @SubscribeMessage('get-room-users')
+  async handleGetRoomUsers(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string },
+  ): Promise<void> {
+    const room = this.server.sockets.adapter.rooms.get(data.roomId);
+    const socketIds = room
+      ? Array.from(room).filter((id) => id !== client.id)
+      : [];
+
+    // Map socketId -> userId (from socket.user if present)
+    const socketToUserId = new Map<string, string | null>();
+    const userIdsToFetch = new Set<string>();
+    for (const socketId of socketIds) {
+      const sock = this.server.sockets.sockets.get(socketId) as
+        | Socket
+        | undefined;
+      const uid = (sock?.user as any)?.sub ?? null;
+      socketToUserId.set(socketId, uid);
+      if (uid) userIdsToFetch.add(uid);
+    }
+
+    // Try cache first (optional). If cacheService available, attempt to get profiles
+    const profileMap = new Map<
+      string,
+      {
+        id: string;
+        username?: string;
+        avatar?: string | null;
+        banner?: string | null;
+      }
+    >();
+    if (userIdsToFetch.size > 0) {
+      const ids = Array.from(userIdsToFetch);
+      // Try to read from cache in batch (if implemented)
+      let missingIds = ids;
+      if (this.cacheService) {
+        const cached = await Promise.all(
+          ids.map((id) => this.cacheService.get(`user_profile_${id}`)),
+        );
+        missingIds = [];
+        cached.forEach((val, i) => {
+          if (val) profileMap.set(ids[i], val);
+          else missingIds.push(ids[i]);
+        });
+      }
+
+      // Fetch missing profiles from DB in one query
+      if (missingIds.length > 0) {
+        const profiles = await this.prismaService.user.findMany({
+          where: { id: { in: missingIds } },
+          select: { id: true, username: true, avatar: true, banner: true },
+        });
+        for (const p of profiles) {
+          profileMap.set(p.id, p);
+          if (this.cacheService) {
+            // cache short-lived
+            await this.cacheService.set(`user_profile_${p.id}`, p, 60 * 5);
+          }
+        }
+      }
+    }
+
+    const users = socketIds.map((socketId) => {
+      const sock = this.server.sockets.sockets.get(socketId) as
+        | Socket
+        | undefined;
+      const userPartial = sock?.user as any | undefined;
+      const uid = socketToUserId.get(socketId) ?? null;
+      const profile = uid ? profileMap.get(uid) : undefined;
+
+      return {
+        socketId,
+        id: uid ?? null,
+        username: userPartial?.username ?? profile?.username ?? null,
+        avatar: userPartial?.avatar ?? profile?.avatar ?? null,
+        banner: userPartial?.banner ?? profile?.banner ?? null,
+      };
+    });
+
+    client.emit('room-users', { users });
+    this.logger.log(`Sent room users to ${client.id}: ${users.length} users`);
+  }
+
+  @SubscribeMessage('signal')
+  handleSignal(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { type: string; payload: any; to: string },
+  ): void {
+    this.server.to(data.to).emit('signal', {
+      type: data.type,
+      payload: data.payload,
+      from: client.id,
+    });
+  }
+
+  @SubscribeMessage('user-left')
+  handleUserLeft(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { roomId: string; communityId?: string },
+  ): WebSocketResponse<{ roomId: string }> {
+    client.leave(data.roomId);
+    this.logger.log(`Client ${client.id} left voice room: ${data.roomId}`);
+    client.to(data.roomId).emit('user-left', { socketId: client.id });
+
+    // If communityId provided, broadcast updated presence
+    if (data.communityId) {
+      const roomNow = this.server.sockets.adapter.rooms.get(data.roomId);
+      const usersCount = roomNow ? roomNow.size : 0;
+      this.broadcastToCommunity(data.communityId, 'channel-presence', {
+        roomId: data.roomId,
+        usersCount,
+      });
+    }
+    return {
+      success: true,
+      data: { roomId: data.roomId },
+      timestamp: new Date(),
+    };
+  }
 }
