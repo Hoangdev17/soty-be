@@ -58,6 +58,7 @@ export class UsersService {
     // Clear user cache and re-cache with updated data
     await this.cacheService.uncacheUser(userId, user.email, user.username);
     await this.cacheService.cacheUser(this.sanitizeForCache(updated));
+    await this.cacheService.del(`user_profile_${userId}`);
 
     return updated;
   }
