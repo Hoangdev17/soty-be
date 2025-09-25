@@ -876,6 +876,90 @@ export class WebsocketGateway
     });
   }
 
+  @SubscribeMessage('video-presence')
+  handleVideoPresence(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      roomId: string;
+      socketId?: string;
+      hasVideo: boolean;
+      communityId?: string;
+    },
+  ): WebSocketResponse<{ roomId?: string }> {
+    // Normalize socketId (client may send its own id or omit it)
+    const socketId = data.socketId ?? client.id;
+
+    const payload = {
+      socketId,
+      userId: client.user?.sub ?? null,
+      hasVideo: !!data.hasVideo,
+    };
+
+    // Emit to other participants in the room (exclude sender)
+    client.to(data.roomId).emit('video-presence', payload);
+
+    // If communityId provided, also notify community subscribers
+    if (data.communityId) {
+      this.broadcastToCommunity(data.communityId, 'video-presence', {
+        roomId: data.roomId,
+        ...payload,
+      });
+    }
+
+    return {
+      success: true,
+      data: { roomId: data.roomId },
+      timestamp: new Date(),
+    };
+  }
+
+  @SubscribeMessage('screen-presence')
+  handleScreenPresence(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    data: {
+      roomId: string;
+      socketId?: string;
+      isSharing: boolean;
+      communityId?: string;
+    },
+  ): WebSocketResponse<{ roomId?: string }> {
+    // Normalize socketId (client may send its own id or omit it)
+    const socketId = data.socketId ?? client.id;
+
+    const payload = {
+      socketId,
+      userId: client.user?.sub ?? null,
+      isSharing: !!data.isSharing,
+    };
+
+    // Log presence change for debugging
+    this.logger.log(
+      `Screen presence from ${client.id} in room ${data.roomId}: isSharing=${payload.isSharing}`,
+    );
+
+    // Emit to other participants in the room (exclude sender)
+    client.to(data.roomId).emit('screen-presence', payload);
+
+    // Also emit back to sender so their UI (or any subscribers) can reliably receive the same event
+    client.emit('screen-presence', payload);
+
+    // If communityId provided, also notify community subscribers
+    if (data.communityId) {
+      this.broadcastToCommunity(data.communityId, 'screen-presence', {
+        roomId: data.roomId,
+        ...payload,
+      });
+    }
+
+    return {
+      success: true,
+      data: { roomId: data.roomId },
+      timestamp: new Date(),
+    };
+  }
+
   @SubscribeMessage('user-left')
   handleUserLeft(
     @ConnectedSocket() client: Socket,
