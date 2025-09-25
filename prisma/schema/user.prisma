@@ -100,6 +100,7 @@ model User {
   presence         Presence?                         // Trạng thái hiện diện (online/offline/idle/dnd + activity)
   devices          Device[]            // Danh sách thiết bị đăng nhập (web/mobile/desktop)
   privacy          Privacy?                          // Cài đặt quyền riêng tư (friend request, DM…)
+  
   settings         Settings?                         // Cài đặt cá nhân (theme, locale, notify…)
   mfa              Mfa?                              // Cấu hình bảo mật 2FA (TOTP/WebAuthn)
 
