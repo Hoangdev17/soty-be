@@ -34,6 +34,9 @@ export const WEBSOCKET_EVENTS = {
   CREATED_THREAD: 'created_thread',
   UPDATED_THREAD: 'updated_thread',
   DELETED_THREAD: 'deleted_thread',
+  TOGGLE_VIDEO: 'toggle_video',
+  GET_ROOM_USERS: 'get_room_users',
+  ROOM_USERS: 'room_users',
 
   //message events
   MESSAGE_DELETED: 'message_deleted',
@@ -55,9 +58,37 @@ export const WEBSOCKET_EVENTS = {
 export type WebSocketEvent =
   (typeof WEBSOCKET_EVENTS)[keyof typeof WEBSOCKET_EVENTS];
 
+export type ToggleVideoPayload = {
+  room: string;
+  enabled: boolean;
+};
+
+export type ToggleVideoData = {
+  userId: string;
+  enabled: boolean;
+};
+
+export type GetRoomUsersPayload = {
+  room: string;
+};
+
+export type RoomUsersData = {
+  users: Array<{
+    id: string;
+    username: string;
+    avatar?: string;
+  }>;
+};
+
 // Event Payload Interfaces
 export interface JoinRoomPayload {
   room: string;
+  isVideoEnabled: boolean;
+  isAudioEnabled: boolean;
+}
+
+export interface ToggleAudioPayload {
+  isAudioEnabled: boolean;
 }
 
 export interface LeaveRoomPayload {
@@ -276,6 +307,7 @@ export interface WebSocketClientEvents {
   [WEBSOCKET_EVENTS.SEND_MESSAGE]: (payload: SendMessagePayload) => void;
   [WEBSOCKET_EVENTS.GET_MEMBERS]: (payload: GetMembersPayload) => void;
   [WEBSOCKET_EVENTS.CREATE_CHANNEL]: (payload: CreateChannelPayload) => void;
+  [WEBSOCKET_EVENTS.GET_ROOM_USERS]: (payload: GetRoomUsersPayload) => void;
 }
 
 // Server-side event emitters
@@ -293,4 +325,5 @@ export interface WebSocketServerEvents {
   [WEBSOCKET_EVENTS.CHANNEL_CREATED]: (data: ChannelCreatedData) => void;
   [WEBSOCKET_EVENTS.NOTIFICATION]: (data: NotificationData) => void;
   [WEBSOCKET_EVENTS.ERROR]: (data: ErrorData) => void;
+  [WEBSOCKET_EVENTS.ROOM_USERS]: (data: RoomUsersData) => void;
 }

@@ -31,7 +31,12 @@ import type {
   MemberEventData,
   CreateChannelPayload,
   ChannelCreatedData,
+  ToggleVideoData,
+  ToggleVideoPayload,
+  GetRoomUsersPayload,
+  RoomUsersData,
 } from './websocket-events.types';
+import { UsersService } from '../users/users.service';
 
 declare module 'socket.io' {
   interface Socket {
@@ -63,6 +68,7 @@ export class WebsocketGateway
     @Inject(forwardRef(() => ChannelsService))
     private readonly channelsService: ChannelsService,
     private readonly cacheService: CacheService,
+    private readonly userService: UsersService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -91,6 +97,7 @@ export class WebsocketGateway
           this.logger.error(
             `Invalid token for client ${client.id}: ${err.message}`,
           );
+          client.emit('auth_error', { message: 'Invalid or expired token' });
           client.disconnect();
           return;
         }
@@ -117,17 +124,159 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage(WEBSOCKET_EVENTS.JOIN_ROOM)
-  handleJoinRoom(
+  async handleJoinRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: JoinRoomPayload,
-  ): WebSocketResponse<JoinedRoomData> {
+  ): Promise<WebSocketResponse<JoinedRoomData>> {
     client.join(data.room);
     this.logger.log(`Client ${client.id} joined room: ${data.room}`);
+
+    const user = await this.userService.findById(client.user?.sub || '');
+
+    client.to(data.room).emit('user_joined', {
+      socketId: client.id,
+      room: data.room,
+      user,
+    });
+
+    client.emit('user_joined', {
+      socketId: client.id,
+      room: data.room,
+      user,
+    });
     return {
       success: true,
       data: { room: data.room },
       timestamp: new Date(),
     };
+  }
+
+  @SubscribeMessage('signal')
+  handleSignal(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { to: string; signal: any },
+  ) {
+    this.logger.log(`Signal from ${socket.id} to ${data.to}`);
+    socket.to(data.to).emit('signal', { from: socket.id, signal: data.signal });
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.TOGGLE_VIDEO)
+  async handleToggleVideo(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { from: string; isVideoEnabled: boolean }, // Khớp client
+  ): Promise<WebSocketResponse<{ userId: string; isVideoEnabled: boolean }>> {
+    if (!client.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      // Emit cho remote users trong room
+      client.to(data.from).emit(WEBSOCKET_EVENTS.TOGGLE_VIDEO, {
+        from: client.id,
+        isVideoEnabled: data.isVideoEnabled,
+      });
+
+      this.logger.log(
+        `Video toggled to ${data.isVideoEnabled ? 'on' : 'off'} in room ${data.from} by user ${client.user.sub}`,
+      );
+
+      return {
+        success: true,
+        data: { userId: client.user.sub, isVideoEnabled: data.isVideoEnabled },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error toggling video: ${error.message}`);
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to toggle video' },
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.GET_ROOM_USERS)
+  async handleGetRoomUsers(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: GetRoomUsersPayload,
+  ): Promise<WebSocketResponse<RoomUsersData>> {
+    if (!client.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+    }
+
+    try {
+      const room = this.server.sockets.adapter.rooms.get(data.room);
+      if (!room) {
+        return {
+          success: false,
+          error: { code: 'ROOM_NOT_FOUND', message: 'Room not found' },
+          timestamp: new Date(),
+        };
+      }
+
+      const users: Array<{ id: string; username: string; avatar?: string }> =
+        [];
+      for (const socketId of room) {
+        const socket = this.server.sockets.sockets.get(socketId);
+        if (socket && socket.user) {
+          const user = await this.userService.findById(socket.user.sub);
+          if (user) {
+            users.push({
+              id: user.id,
+              username: user.username,
+              avatar: user.avatar,
+            });
+          }
+        }
+      }
+
+      this.logger.log(
+        `Room users retrieved for room ${data.room} by user ${client.user.sub}`,
+      );
+
+      let emitRoom = data.room;
+      if (data.room.endsWith('_init')) {
+        emitRoom = data.room.replace('_init', '');
+      }
+
+      console.log('Emitting to room:', emitRoom);
+
+      // Emit room users to all clients in the room
+      this.emitToRoom(emitRoom, WEBSOCKET_EVENTS.ROOM_USERS, {
+        users,
+        requestedBy: client.user.sub,
+        timestamp: new Date(),
+      });
+
+      return {
+        success: true,
+        data: { users },
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error getting room users: ${error.message}`);
+      return {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to get room users' },
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  @SubscribeMessage('user-left')
+  handleUserLeft(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() data: { room: string; userId: string },
+  ) {
+    socket.to(data.room).emit('user-left', { userId: data.userId });
   }
 
   @SubscribeMessage(WEBSOCKET_EVENTS.LEAVE_ROOM)
@@ -137,6 +286,10 @@ export class WebsocketGateway
   ): WebSocketResponse<LeftRoomData> {
     client.leave(data.room);
     this.logger.log(`Client ${client.id} left room: ${data.room}`);
+
+    client
+      .to(data.room)
+      .emit('user_left', { socketId: client.id, room: data.room });
     return {
       success: true,
       data: { room: data.room },
@@ -627,361 +780,5 @@ export class WebsocketGateway
 
   broadcastToCommunity(communityId: string, event: string, data: any) {
     this.emitToRoom(`community_${communityId}`, event, data);
-  }
-
-  // Voice channel events
-  @SubscribeMessage('join-room')
-  async handleJoinRoomVoice(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string; communityId?: string },
-  ): Promise<WebSocketResponse<{ roomId: string }>> {
-    client.join(data.roomId);
-    this.logger.log(`Client ${client.id} joined voice room: ${data.roomId}`);
-    // Get existing users in room (socket ids excluding the joining client)
-    const room = this.server.sockets.adapter.rooms.get(data.roomId);
-    const socketIds = room
-      ? Array.from(room).filter((id) => id !== client.id)
-      : [];
-
-    let users: Array<any> = [];
-    if (socketIds.length > 0) {
-      // Build map socketId -> userId and collect userIds to fetch from DB
-      const socketToUserId = new Map<string, string | null>();
-      const userIdsToFetch = new Set<string>();
-      for (const socketId of socketIds) {
-        const sock = this.server.sockets.sockets.get(socketId) as
-          | Socket
-          | undefined;
-        const uid = (sock?.user as any)?.sub ?? null;
-        socketToUserId.set(socketId, uid);
-        if (uid) userIdsToFetch.add(uid);
-      }
-
-      // Try cache first, then DB for missing profiles
-      const profileMap = new Map<
-        string,
-        {
-          id: string;
-          username?: string;
-          avatar?: string | null;
-          banner?: string | null;
-        }
-      >();
-      if (userIdsToFetch.size > 0) {
-        const ids = Array.from(userIdsToFetch);
-        let missingIds = ids;
-        if (this.cacheService) {
-          const cached = await Promise.all(
-            ids.map((id) => this.cacheService.get(`user_profile_${id}`)),
-          );
-          missingIds = [];
-          cached.forEach((val, i) => {
-            if (val) profileMap.set(ids[i], val);
-            else missingIds.push(ids[i]);
-          });
-        }
-
-        if (missingIds.length > 0) {
-          const profiles = await this.prismaService.user.findMany({
-            where: { id: { in: missingIds } },
-            select: { id: true, username: true, avatar: true, banner: true },
-          });
-          for (const p of profiles) {
-            profileMap.set(p.id, p);
-            if (this.cacheService) {
-              await this.cacheService.set(`user_profile_${p.id}`, p, 60 * 5);
-            }
-          }
-        }
-      }
-
-      // Build user objects for existing sockets
-      users = socketIds.map((socketId) => {
-        const sock = this.server.sockets.sockets.get(socketId) as
-          | Socket
-          | undefined;
-        const userPartial = sock?.user as any | undefined;
-        const uid = socketToUserId.get(socketId) ?? null;
-        const profile = uid ? profileMap.get(uid) : undefined;
-
-        return {
-          socketId,
-          id: uid ?? null,
-          username: userPartial?.username ?? profile?.username ?? null,
-          avatar: userPartial?.avatar ?? profile?.avatar ?? null,
-          banner: userPartial?.banner ?? profile?.banner ?? null,
-        };
-      });
-
-      // Send existing users to the new client
-      client.emit('room-users', { users });
-    }
-
-    // Notify existing users about new client with metadata (so FE can show new user immediately)
-    const newUserPartial = client.user as any | undefined;
-    let newUserProfile:
-      | {
-          id: string;
-          username?: string;
-          avatar?: string | null;
-          banner?: string | null;
-        }
-      | undefined;
-    if (client.user?.sub) {
-      // try cache
-      if (this.cacheService) {
-        newUserProfile =
-          (await this.cacheService.get(`user_profile_${client.user.sub}`)) ??
-          undefined;
-      }
-      if (!newUserProfile) {
-        const p = await this.prismaService.user.findUnique({
-          where: { id: client.user.sub },
-          select: { id: true, username: true, avatar: true, banner: true },
-        });
-        if (p) {
-          newUserProfile = p;
-          if (this.cacheService)
-            await this.cacheService.set(`user_profile_${p.id}`, p, 60 * 5);
-        }
-      }
-    }
-
-    const newUserMeta = {
-      socketId: client.id,
-      id: client.user?.sub ?? null,
-      username: newUserPartial?.username ?? newUserProfile?.username ?? null,
-      avatar: newUserPartial?.avatar ?? newUserProfile?.avatar ?? null,
-      banner: newUserPartial?.banner ?? newUserProfile?.banner ?? null,
-    };
-
-    client.to(data.roomId).emit('user-joined', { user: newUserMeta });
-
-    // Broadcast presence to community subscribers if communityId provided
-    if (data.communityId) {
-      // include the joining user so subscribers see the updated full list
-      const usersAfter = [newUserMeta, ...users];
-      const usersCount = usersAfter.length;
-      this.broadcastToCommunity(data.communityId, 'channel-presence', {
-        roomId: data.roomId,
-        usersCount,
-        users: usersAfter,
-      });
-
-      this.logger.log(
-        `Broadcasted presence for room ${data.roomId} in community ${data.communityId}: ${usersCount} users`,
-      );
-    }
-
-    return {
-      success: true,
-      data: { roomId: data.roomId },
-      timestamp: new Date(),
-    };
-  }
-
-  @SubscribeMessage('get-room-users')
-  async handleGetRoomUsers(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string },
-  ): Promise<void> {
-    const room = this.server.sockets.adapter.rooms.get(data.roomId);
-    const socketIds = room
-      ? Array.from(room).filter((id) => id !== client.id)
-      : [];
-
-    // Map socketId -> userId (from socket.user if present)
-    const socketToUserId = new Map<string, string | null>();
-    const userIdsToFetch = new Set<string>();
-    for (const socketId of socketIds) {
-      const sock = this.server.sockets.sockets.get(socketId) as
-        | Socket
-        | undefined;
-      const uid = (sock?.user as any)?.sub ?? null;
-      socketToUserId.set(socketId, uid);
-      if (uid) userIdsToFetch.add(uid);
-    }
-
-    // Try cache first (optional). If cacheService available, attempt to get profiles
-    const profileMap = new Map<
-      string,
-      {
-        id: string;
-        username?: string;
-        avatar?: string | null;
-        banner?: string | null;
-      }
-    >();
-    if (userIdsToFetch.size > 0) {
-      const ids = Array.from(userIdsToFetch);
-      // Try to read from cache in batch (if implemented)
-      let missingIds = ids;
-      if (this.cacheService) {
-        const cached = await Promise.all(
-          ids.map((id) => this.cacheService.get(`user_profile_${id}`)),
-        );
-        missingIds = [];
-        cached.forEach((val, i) => {
-          if (val) profileMap.set(ids[i], val);
-          else missingIds.push(ids[i]);
-        });
-      }
-
-      // Fetch missing profiles from DB in one query
-      if (missingIds.length > 0) {
-        const profiles = await this.prismaService.user.findMany({
-          where: { id: { in: missingIds } },
-          select: { id: true, username: true, avatar: true, banner: true },
-        });
-        for (const p of profiles) {
-          profileMap.set(p.id, p);
-          if (this.cacheService) {
-            // cache short-lived
-            await this.cacheService.set(`user_profile_${p.id}`, p, 60 * 5);
-          }
-        }
-      }
-    }
-
-    const users = socketIds.map((socketId) => {
-      const sock = this.server.sockets.sockets.get(socketId) as
-        | Socket
-        | undefined;
-      const userPartial = sock?.user as any | undefined;
-      const uid = socketToUserId.get(socketId) ?? null;
-      const profile = uid ? profileMap.get(uid) : undefined;
-
-      return {
-        socketId,
-        id: uid ?? null,
-        username: userPartial?.username ?? profile?.username ?? null,
-        avatar: userPartial?.avatar ?? profile?.avatar ?? null,
-        banner: userPartial?.banner ?? profile?.banner ?? null,
-      };
-    });
-
-    client.emit('room-users', { users });
-    this.logger.log(`Sent room users to ${client.id}: ${users.length} users`);
-  }
-
-  @SubscribeMessage('signal')
-  handleSignal(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { type: string; payload: any; to: string },
-  ): void {
-    this.server.to(data.to).emit('signal', {
-      type: data.type,
-      payload: data.payload,
-      from: client.id,
-    });
-  }
-
-  @SubscribeMessage('video-presence')
-  handleVideoPresence(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: {
-      roomId: string;
-      socketId?: string;
-      hasVideo: boolean;
-      communityId?: string;
-    },
-  ): WebSocketResponse<{ roomId?: string }> {
-    // Normalize socketId (client may send its own id or omit it)
-    const socketId = data.socketId ?? client.id;
-
-    const payload = {
-      socketId,
-      userId: client.user?.sub ?? null,
-      hasVideo: !!data.hasVideo,
-    };
-
-    // Emit to other participants in the room (exclude sender)
-    client.to(data.roomId).emit('video-presence', payload);
-
-    // If communityId provided, also notify community subscribers
-    if (data.communityId) {
-      this.broadcastToCommunity(data.communityId, 'video-presence', {
-        roomId: data.roomId,
-        ...payload,
-      });
-    }
-
-    return {
-      success: true,
-      data: { roomId: data.roomId },
-      timestamp: new Date(),
-    };
-  }
-
-  @SubscribeMessage('screen-presence')
-  handleScreenPresence(
-    @ConnectedSocket() client: Socket,
-    @MessageBody()
-    data: {
-      roomId: string;
-      socketId?: string;
-      isSharing: boolean;
-      communityId?: string;
-    },
-  ): WebSocketResponse<{ roomId?: string }> {
-    // Normalize socketId (client may send its own id or omit it)
-    const socketId = data.socketId ?? client.id;
-
-    const payload = {
-      socketId,
-      userId: client.user?.sub ?? null,
-      isSharing: !!data.isSharing,
-    };
-
-    // Log presence change for debugging
-    this.logger.log(
-      `Screen presence from ${client.id} in room ${data.roomId}: isSharing=${payload.isSharing}`,
-    );
-
-    // Emit to other participants in the room (exclude sender)
-    client.to(data.roomId).emit('screen-presence', payload);
-
-    // Also emit back to sender so their UI (or any subscribers) can reliably receive the same event
-    client.emit('screen-presence', payload);
-
-    // If communityId provided, also notify community subscribers
-    if (data.communityId) {
-      this.broadcastToCommunity(data.communityId, 'screen-presence', {
-        roomId: data.roomId,
-        ...payload,
-      });
-    }
-
-    return {
-      success: true,
-      data: { roomId: data.roomId },
-      timestamp: new Date(),
-    };
-  }
-
-  @SubscribeMessage('user-left')
-  handleUserLeft(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string; communityId?: string },
-  ): WebSocketResponse<{ roomId: string }> {
-    client.leave(data.roomId);
-    this.logger.log(`Client ${client.id} left voice room: ${data.roomId}`);
-    client.to(data.roomId).emit('user-left', { socketId: client.id });
-
-    // If communityId provided, broadcast updated presence
-    if (data.communityId) {
-      const roomNow = this.server.sockets.adapter.rooms.get(data.roomId);
-      const usersCount = roomNow ? roomNow.size : 0;
-      this.broadcastToCommunity(data.communityId, 'channel-presence', {
-        roomId: data.roomId,
-        usersCount,
-      });
-    }
-    return {
-      success: true,
-      data: { roomId: data.roomId },
-      timestamp: new Date(),
-    };
   }
 }
