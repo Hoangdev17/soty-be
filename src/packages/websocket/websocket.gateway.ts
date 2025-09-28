@@ -214,6 +214,7 @@ export class WebsocketGateway
 
     try {
       const room = this.server.sockets.adapter.rooms.get(data.room);
+
       if (!room) {
         return {
           success: false,
@@ -222,14 +223,33 @@ export class WebsocketGateway
         };
       }
 
-      const users: Array<{ id: string; username: string; avatar?: string }> =
-        [];
+      // Chuẩn bị hai mảng: một để trả về (không kèm socketId),
+      // một để emit (có socketId)
+      const usersForReturn: Array<{
+        id: string;
+        username: string;
+        avatar?: string;
+      }> = [];
+      const usersWithSocket: Array<{
+        socketId: string;
+        id: string;
+        username: string;
+        avatar?: string;
+      }> = [];
+
       for (const socketId of room) {
         const socket = this.server.sockets.sockets.get(socketId);
         if (socket && socket.user) {
           const user = await this.userService.findById(socket.user.sub);
           if (user) {
-            users.push({
+            usersForReturn.push({
+              id: user.id,
+              username: user.username,
+              avatar: user.avatar,
+            });
+
+            usersWithSocket.push({
+              socketId,
               id: user.id,
               username: user.username,
               avatar: user.avatar,
@@ -247,18 +267,16 @@ export class WebsocketGateway
         emitRoom = data.room.replace('_init', '');
       }
 
-      console.log('Emitting to room:', emitRoom);
-
-      // Emit room users to all clients in the room
       this.emitToRoom(emitRoom, WEBSOCKET_EVENTS.ROOM_USERS, {
-        users,
+        users: usersWithSocket,
         requestedBy: client.user.sub,
         timestamp: new Date(),
+        sourceRoom: data.room,
       });
 
       return {
         success: true,
-        data: { users },
+        data: { users: usersForReturn },
         timestamp: new Date(),
       };
     } catch (error) {
@@ -276,7 +294,9 @@ export class WebsocketGateway
     @ConnectedSocket() socket: Socket,
     @MessageBody() data: { room: string; userId: string },
   ) {
-    socket.to(data.room).emit('user-left', { userId: data.userId });
+    socket
+      .to(data.room)
+      .emit('user-left', { userId: data.userId, socketId: socket.id });
   }
 
   @SubscribeMessage(WEBSOCKET_EVENTS.LEAVE_ROOM)
