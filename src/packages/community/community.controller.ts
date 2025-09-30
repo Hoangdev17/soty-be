@@ -133,8 +133,8 @@ export class CommunityController {
   }
 
   @Post(':communityId/join')
-  @ApiOperation({ summary: 'Join a community' })
-  @ApiResponse({ status: 201, description: 'Joined community successfully' })
+  @ApiOperation({ summary: 'Join a community or submit join request for private communities' })
+  @ApiResponse({ status: 201, description: 'Joined community or request submitted successfully' })
   @ApiResponse({ status: 404, description: 'Community not found' })
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
@@ -142,7 +142,7 @@ export class CommunityController {
     @Param('communityId') communityId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.membersService.joinCommunity(communityId, req.user.id);
+    return this.communityService.joinCommunity(communityId, req.user.id);
   }
 
   @Delete(':id/leave')
@@ -179,5 +179,57 @@ export class CommunityController {
     @Param('userId') userId: string,
   ) {
     return this.membersService.getMemberPermissions(guildId, userId);
+  }
+
+  @Get(':id/join-requests')
+  @ApiOperation({ summary: 'Get pending join requests for a community (owner/admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Join requests retrieved successfully',
+  })
+  @ApiResponse({ status: 403, description: 'Unauthorized' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  getJoinRequests(
+    @Param('id') communityId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.communityService.getJoinRequests(communityId, req.user.id);
+  }
+
+  @Post(':id/join-requests/:requestId/approve')
+  @ApiOperation({ summary: 'Approve a join request (owner/admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Join request approved successfully',
+  })
+  @ApiResponse({ status: 403, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Request not found' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  approveJoinRequest(
+    @Param('id') communityId: string,
+    @Param('requestId') requestId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.communityService.approveJoinRequest(communityId, requestId, req.user.id);
+  }
+
+  @Post(':id/join-requests/:requestId/reject')
+  @ApiOperation({ summary: 'Reject a join request (owner/admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Join request rejected successfully',
+  })
+  @ApiResponse({ status: 403, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Request not found' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  rejectJoinRequest(
+    @Param('id') communityId: string,
+    @Param('requestId') requestId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.communityService.rejectJoinRequest(communityId, requestId, req.user.id);
   }
 }

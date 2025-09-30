@@ -57,6 +57,9 @@ model Payment {
   
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  guildId String?
+  guild   Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
   // Nitro purchase fields
   nitroId     String? // ID của Nitro offering được mua
   nitro       Nitro?  @relation("NitroPayment", fields: [nitroId], references: [id])
@@ -65,9 +68,8 @@ model Payment {
   // Boost purchase fields
   boostId String? // ID của Boost được mua
   boost   Boost?  @relation("BoostPayment", fields: [boostId], references: [id])
-
+  NitroPurchase NitroPurchase[]
   @@map("payments")
-  GuildBoost GuildBoost[]
+
+  BoostPurchase BoostPurchase[]
 }
-
-

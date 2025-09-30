@@ -23,44 +23,13 @@ model Nitro {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Assignments linking this Nitro to guilds
-  guildAssignments GuildNitro[]
-
   // Payments for purchasing this Nitro
   payments Payment[] @relation("NitroPayment")
 
   @@map("nitros")
+  NitroPurchase NitroPurchase[]
 }
 
-// Mapping between a Guild and a Nitro offering.
-// Stores assignment info (which guild has which nitro, when assigned, expiry, etc.)
-model GuildNitro {
-  id        String   @id @map("_id")
-
-  guildId   String
-  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-
-  nitroId   String
-  nitro     Nitro    @relation(fields: [nitroId], references: [id], onDelete: Cascade)
-
-  // When the nitro was assigned to the guild
-  assignedAt DateTime @default(now())
-
-  // Optional expiry; null = permanent/indefinite
-  expiresAt DateTime?
-
-  // Whether this assignment is active
-  isActive  Boolean  @default(true)
-
-  // Optional metadata per assignment (e.g., limit, custom config)
-  metadata  Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([guildId, nitroId])
-  @@map("guild_nitros")
-}
 
 // Model cho hành động boost (user boosts globally)
 model Boost {
@@ -78,6 +47,9 @@ model Boost {
   // Optional expiry (dài hơn nếu upgrade)
   expiresAt DateTime?
 
+  //amount
+  amount    Float   @default(0)
+
   // Metadata
   metadata  Json?
 
@@ -86,6 +58,25 @@ model Boost {
 
   @@map("boosts")
   Payment Payment[] @relation("BoostPayment")
+  BoostPurchase BoostPurchase[]
+}
+
+model BoostPurchase {
+  id         String   @id @map("_id")
+  paymentId  String?  
+  payment    Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)  
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)        
+  guildId    String
+  guild      Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  boostId    String
+  boost      Boost    @relation(fields: [boostId], references: [id], onDelete: Cascade)
+  amount     Float
+  status     Int      @default(1)  // 0=pending,1=completed,2=failed
+  metadata   Json?
+  purchaseAt  DateTime @default(now())
+
+  @@map("boost_purchases")
 }
 
 // Model cho Nitro như currency (gems) sở hữu bởi user
@@ -100,8 +91,27 @@ model UserNitro {
   // Lịch sử mua (optional, hoặc dùng transaction log)
   metadata  Json?
 
+  expiry    DateTime? // Optional expiry cho gems (null = không bao giờ hết hạn)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("user_nitros")
+}
+
+model NitroPurchase {
+  id         String   @id @map("_id")
+  paymentId  String?  
+  payment    Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)          
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nitroId    String
+  nitro      Nitro    @relation(fields: [nitroId], references: [id], onDelete: Cascade)
+  amount     Float
+  status     Int      @default(1)  // 0=pending,1=completed,2=failed
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("nitro_purchases")
 }

@@ -35,4 +35,14 @@ export class BoostController {
   create(@Body() createBoostDto: CreateBoostDtoClass) {
     return this.boostService.create(createBoostDto);
   }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Cập nhật boost' })
+  @ApiResponse({
+    status: 200,
+    description: 'Boost đã được cập nhật thành công',
+  })
+  update(@Param('id') id: string, @Body() updateBoostDto: UpdateBoostDtoClass) {
+    return this.boostService.update(id, updateBoostDto);
+  }
 }

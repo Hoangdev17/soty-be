@@ -26,4 +26,51 @@ export class BoostService {
       },
     });
   }
+
+  async update(id: string, updateBoostDto: UpdateBoostDto) {
+    const boost = await this.prisma.boost.findUnique({ where: { id } });
+    if (!boost) {
+      throw new NotFoundException(`Boost with ID ${id} not found`);
+    }
+
+    return await this.prisma.boost.update({
+      where: { id },
+      data: updateBoostDto,
+    });
+  }
+  async buyBoost(
+    guildId: string,
+    boostId: string,
+    userId: string,
+    paymentId: string,
+  ) {
+    const boost = await this.prisma.boost.findUnique({
+      where: { id: boostId },
+    });
+
+    if (!boost) {
+      throw new NotFoundException(`Boost package with ID ${boostId} not found`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.guild.update({
+        where: { id: guildId },
+        data: {
+          premiumTier: boost.level,
+        },
+      });
+
+      await tx.boostPurchase.create({
+        data: {
+          id: this.snowFlake.generate(),
+          guildId,
+          userId,
+          boostId: boostId,
+          amount: boost.amount,
+          status: 1,
+          paymentId: paymentId,
+        },
+      });
+    });
+  }
 }

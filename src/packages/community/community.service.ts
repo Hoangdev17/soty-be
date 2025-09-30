@@ -314,6 +314,16 @@ export class CommunityService {
   }
 
   async joinCommunity(communityId: string, userId: string) {
+    // Check if community exists and get its visibility
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: communityId },
+      select: { visibility: true },
+    });
+
+    if (!guild) {
+      throw new Error('Community not found');
+    }
+
     // Check if user is already a member
     const existingMember = await this.prisma.guildMember.findFirst({
       where: {
@@ -326,55 +336,95 @@ export class CommunityService {
       throw new Error('User is already a member of this community');
     }
 
-    // Get @everyone role for this guild
-    const everyoneRole = await this.prisma.guildRole.findFirst({
+    // Check if there's already a pending request
+    const existingRequest = await this.prisma.guildJoinRequest.findFirst({
       where: {
         guildId: communityId,
-        name: '@everyone',
+        userId,
+        status: 'PENDING',
       },
     });
 
-    if (!everyoneRole) {
-      throw new Error('Default role not found for this community');
+    if (existingRequest) {
+      throw new Error(
+        'You already have a pending join request for this community',
+      );
     }
 
-    // Create guild member
-    const memberId = this.snowflake.generate();
-    const member = await this.prisma.guildMember.create({
-      data: {
-        id: memberId,
-        guildId: communityId,
-        userId,
-        permissions: PermissionUtils.getDefaultPermissions(),
-      },
-    });
-
-    // Assign @everyone role to the new member
-    await this.prisma.guildMemberRole.create({
-      data: {
-        id: this.snowflake.generate(),
-        memberId: memberId,
-        roleId: everyoneRole.id,
-      },
-    });
-
-    // Update guild member count
-    await this.prisma.guild.update({
-      where: { id: communityId },
-      data: {
-        memberCount: {
-          increment: 1,
+    if (guild.visibility === 'PRIVATE') {
+      // Create join request for private community
+      const joinRequest = await this.prisma.guildJoinRequest.create({
+        data: {
+          id: this.snowflake.generate(),
+          guildId: communityId,
+          userId,
+          status: 'PENDING',
         },
-      },
-    });
+      });
 
-    // Clear related cache
-    await this.cacheService.del(`community:${communityId}`);
-    await this.cacheService.del(`community:${communityId}:members`);
-    await this.cacheService.del(`community:${communityId}:channels`);
-    await this.cacheService.del(`user:${userId}:communities`);
+      // Clear related cache
+      await this.cacheService.del(`community:${communityId}`);
+      await this.cacheService.del(`community:${communityId}:members`);
+      await this.cacheService.del(`community:${communityId}:channels`);
+      await this.cacheService.del(`user:${userId}:communities`);
 
-    return member;
+      return {
+        message: 'Join request submitted',
+        request: joinRequest,
+        statusCode: 202,
+      };
+    } else {
+      // Direct join for public community
+      // Get @everyone role for this guild
+      const everyoneRole = await this.prisma.guildRole.findFirst({
+        where: {
+          guildId: communityId,
+          name: '@everyone',
+        },
+      });
+
+      if (!everyoneRole) {
+        throw new Error('Default role not found for this community');
+      }
+
+      // Create guild member
+      const memberId = this.snowflake.generate();
+      const member = await this.prisma.guildMember.create({
+        data: {
+          id: memberId,
+          guildId: communityId,
+          userId,
+          permissions: PermissionUtils.getDefaultPermissions(),
+        },
+      });
+
+      // Assign @everyone role to the new member
+      await this.prisma.guildMemberRole.create({
+        data: {
+          id: this.snowflake.generate(),
+          memberId: memberId,
+          roleId: everyoneRole.id,
+        },
+      });
+
+      // Update guild member count
+      await this.prisma.guild.update({
+        where: { id: communityId },
+        data: {
+          memberCount: {
+            increment: 1,
+          },
+        },
+      });
+
+      // Clear related cache
+      await this.cacheService.del(`community:${communityId}`);
+      await this.cacheService.del(`community:${communityId}:members`);
+      await this.cacheService.del(`community:${communityId}:channels`);
+      await this.cacheService.del(`user:${userId}:communities`);
+
+      return member;
+    }
   }
 
   async leaveCommunity(communityId: string, userId: string) {
@@ -597,5 +647,171 @@ export class CommunityService {
     // Cache for 5 minutes
     await this.cacheService.set(cacheKey, communities, 300);
     return communities;
+  }
+
+  async getJoinRequests(communityId: string, userId: string) {
+    // Check if user has permission to view requests (owner or admin)
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: communityId },
+      select: { ownerId: true },
+    });
+
+    if (!guild || guild.ownerId !== userId) {
+      throw new Error('Unauthorized to view join requests');
+    }
+
+    const requests = await this.prisma.guildJoinRequest.findMany({
+      where: {
+        guildId: communityId,
+        status: 'PENDING',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            globalName: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return requests;
+  }
+
+  async approveJoinRequest(
+    communityId: string,
+    requestId: string,
+    approverId: string,
+  ) {
+    // Check if approver has permission (owner or admin)
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: communityId },
+      select: { ownerId: true },
+    });
+
+    if (!guild || guild.ownerId !== approverId) {
+      throw new Error('Unauthorized to approve join requests');
+    }
+
+    // Get the request
+    const request = await this.prisma.guildJoinRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true },
+    });
+
+    if (
+      !request ||
+      request.guildId !== communityId ||
+      request.status !== 'PENDING'
+    ) {
+      throw new Error('Invalid join request');
+    }
+
+    // Check if user is already a member
+    const existingMember = await this.prisma.guildMember.findFirst({
+      where: {
+        guildId: communityId,
+        userId: request.userId,
+      },
+    });
+
+    if (existingMember) {
+      // Update request status and return
+      await this.prisma.guildJoinRequest.update({
+        where: { id: requestId },
+        data: { status: 'APPROVED' },
+      });
+      return { message: 'User is already a member' };
+    }
+
+    // Get @everyone role
+    const everyoneRole = await this.prisma.guildRole.findFirst({
+      where: {
+        guildId: communityId,
+        name: '@everyone',
+      },
+    });
+
+    if (!everyoneRole) {
+      throw new Error('Default role not found for this community');
+    }
+
+    // Create member in transaction
+    await this.prisma.$transaction(async (tx) => {
+      // Create guild member
+      const memberId = this.snowflake.generate();
+      await tx.guildMember.create({
+        data: {
+          id: memberId,
+          guildId: communityId,
+          userId: request.userId,
+          permissions: PermissionUtils.getDefaultPermissions(),
+        },
+      });
+
+      // Assign @everyone role
+      await tx.guildMemberRole.create({
+        data: {
+          id: this.snowflake.generate(),
+          memberId: memberId,
+          roleId: everyoneRole.id,
+        },
+      });
+
+      // Update guild member count
+      await tx.guild.update({
+        where: { id: communityId },
+        data: {
+          memberCount: {
+            increment: 1,
+          },
+        },
+      });
+
+      // Update request status
+      await tx.guildJoinRequest.update({
+        where: { id: requestId },
+        data: { status: 'APPROVED' },
+      });
+    });
+
+    // Clear cache
+    await this.cacheService.del(`community:${communityId}`);
+    await this.cacheService.del(`community:${communityId}:members`);
+    await this.cacheService.del(`community:${communityId}:channels`);
+    await this.cacheService.del(`user:${request.userId}:communities`);
+
+    return request.user;
+  }
+
+  async rejectJoinRequest(
+    communityId: string,
+    requestId: string,
+    approverId: string,
+  ) {
+    // Check if approver has permission (owner or admin)
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: communityId },
+      select: { ownerId: true },
+    });
+
+    if (!guild || guild.ownerId !== approverId) {
+      throw new Error('Unauthorized to reject join requests');
+    }
+
+    // Update request status
+    const updatedRequest = await this.prisma.guildJoinRequest.update({
+      where: {
+        id: requestId,
+        guildId: communityId,
+        status: 'PENDING',
+      },
+      data: { status: 'REJECTED' },
+    });
+
+    return { message: 'Join request rejected', request: updatedRequest };
   }
 }

@@ -94,4 +94,14 @@ export class NitroController {
   remove(@Param('id') id: string) {
     return this.nitroService.remove(id);
   }
+
+  @Post('buy/:userId/:nitroId')
+  @ApiOperation({ summary: 'Mua gói Nitro' })
+  @ApiResponse({
+    status: 201,
+    description: 'Gói Nitro đã được mua thành công',
+  })
+  buy(@Param('userId') userId: string, @Param('nitroId') nitroId: string) {
+    return this.nitroService.buyNitro(userId, nitroId);
+  }
 }
