@@ -55,7 +55,7 @@ export class SepayController {
     @Body() body: CreatePaymentDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.sepayService.createPayment(body, req.user.id);
+    return this.sepayService.createPayment(body, req.user.id, body.guildId);
   }
 
   /**

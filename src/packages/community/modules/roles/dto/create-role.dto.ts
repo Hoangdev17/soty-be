@@ -12,6 +12,7 @@ export const CreateRoleSchema = z.object({
   permissions: z.array(z.string()).describe('Danh sách quyền của role'),
   color: z.string().min(7).max(7).optional().describe('Màu của role (RGB)'),
   hoist: z.boolean().default(false).describe('Hiển thị thành viên riêng biệt'),
+  isPrivate: z.boolean().default(false).describe('Role riêng tư'),
   mentionable: z.boolean().default(false).describe('Cho phép mention role'),
 });
 
@@ -47,6 +48,13 @@ export class CreateRoleDto extends createZodDto(CreateRoleSchema) {
     default: false,
   })
   hoist: boolean;
+
+  @ApiProperty({
+    description: 'Role riêng tư, chỉ có thể gán cho người dùng cụ thể',
+    example: false,
+    default: false,
+  })
+  isPrivate: boolean;
 
   @ApiProperty({
     description: 'Cho phép mention role',

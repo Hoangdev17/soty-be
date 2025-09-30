@@ -92,8 +92,6 @@ model Guild {
   premiumTier              Int @default(0)
   premiumSubscriptionCount Int @default(0)
 
-  boosts GuildBoost[]
-
   // Guild level based on boosts
   level Int @default(0) // Level tính từ số boosts
 
@@ -105,9 +103,6 @@ model Guild {
   stickers           GuildMessageSticker[]
   GuildAnimatedImage GuildAnimatedImage[]
   GuildMemberBanned  GuildMemberBanned[]
-
-  // Nitro assignments for this guild
-  nitros             GuildNitro[]
 
   Wallet              Wallet[]
   GuildJoinRequest    GuildJoinRequest[]
@@ -122,6 +117,8 @@ model Guild {
 
   @@index([ownerId, url])
   @@map("guilds")
+  BoostPurchase BoostPurchase[]
+  Payment Payment[]
 }
 
 model GuildMemberBanned {
@@ -425,6 +422,8 @@ model GuildChannel {
   recipients String[] @default([])
   maxMembers Int?
 
+  isPrivate Boolean @default(false)
+
   /**
    * End DM Group
    */
@@ -616,6 +615,7 @@ model GuildMessage {
   PinnedMessage PinnedMessage[]
 
   @@index([channelId, createdAt])
+  @@index([id, channelId])
   @@map("guild_messages")
 }
 
@@ -1061,20 +1061,6 @@ model GuildSticker {
   packs GuildStickerPack[] @relation("CoverSticker")
 
   @@map("guild_stickers")
-}
-
-model GuildBoost {
-  id        String   @id @map("_id")
-  userId    String
-  guildId   String
-  createdAt DateTime @default(now())
-  paymentId String?
-  payment   Payment? @relation(fields: [paymentId], references: [id])
-  expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  guild     Guild    @relation(fields: [guildId], references: [id])
-
-  @@map("guild_boost")
 }
 
 model LeaderboardSnapshot {

@@ -4,6 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export const CreatePaymentSchema = z.object({
   amount: z.number().min(1000, 'Amount must be at least 1,000 VND'),
+  guildId: z.string().optional(),
   content: z.string().min(1, 'Content is required'),
   nitroId: z.string().optional(),
   nitroAmount: z.number().min(1).optional(),
@@ -14,6 +15,7 @@ export const WebhookSchema = z.object({
   content: z.string(),
   amount: z.number(),
   status: z.string(),
+  guildId: z.string().optional(),
 });
 
 export type CreatePaymentDto = z.infer<typeof CreatePaymentSchema>;
@@ -27,6 +29,13 @@ export class CreatePaymentDtoClass extends createZodDto(CreatePaymentSchema) {
     minimum: 1000,
   })
   amount: number;
+
+  @ApiProperty({
+    description: 'guild id',
+    example: '123456789012345678',
+    required: false,
+  })
+  guildId?: string;
 
   @ApiProperty({
     description: 'Nội dung thanh toán',

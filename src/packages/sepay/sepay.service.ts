@@ -5,6 +5,8 @@ import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreatePaymentDto, CompletePaymentResponseDto } from './dto/sepay.dto';
 import { SnowflakeID } from '../../utils/snowflake';
 import th from 'zod/v4/locales/th.js';
+import { NitroService } from '../nitro/nitro.service';
+import { BoostService } from '../boost/boost.service';
 
 export interface CreatePaymentRequest {
   amount: number;
@@ -68,6 +70,8 @@ export class SepayService {
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
     private readonly snowflakeService: SnowflakeID,
+    private nitroService: NitroService,
+    private boostService: BoostService,
   ) {
     this.apiUrl =
       this.configService.get<string>('SEPAY_API_URL') || 'https://my.sepay.vn/';
@@ -77,13 +81,18 @@ export class SepayService {
   /**
    * Tạo payment với QR code VietQR
    */
-  async createPayment(request: CreatePaymentDto, userId: string) {
+  async createPayment(
+    request: CreatePaymentDto,
+    userId: string,
+    guildId?: string,
+  ) {
     try {
       // 1. Tạo Payment record trong DB
       const payment = await this.prismaService.payment.create({
         data: {
           id: this.snowflakeService.generate(),
           userId: userId,
+          guildId: guildId || null,
           amount: request.amount,
           status: 0, // PENDING
           nitroId: request.nitroId || null,
@@ -116,6 +125,7 @@ export class SepayService {
         qrData: qrData.qrString,
         bankCode: this.configService.get<string>('SEPAY_BANK_CODE') || 'MBBank',
         amount: request.amount,
+        guildId: guildId,
         content: `${request.content}`,
         instructions:
           'Vui lòng quét mã QR hoặc chuyển khoản theo thông tin trên. Nội dung chuyển khoản CHÍNH XÁC để được xử lý tự động.',
@@ -216,8 +226,6 @@ export class SepayService {
     }
 
     if (payment.status === 0) {
-      let gemsAmount = 0;
-
       await this.prismaService.$transaction(async (tx) => {
         // 1. Cập nhật payment status
         await tx.payment.update({
@@ -228,74 +236,25 @@ export class SepayService {
             updatedAt: new Date(),
           },
         });
-
-        if (payment.nitroId) {
-          const nitro = await tx.nitro.findUnique({
-            where: { id: payment.nitroId },
-          });
-          if (nitro) {
-            gemsAmount = Math.floor((nitro.price / 25000) * 2); // Tính từ price của nitro
-          }
-        } else if (payment.boostId) {
-          // For Boost purchases, calculate gems from payment amount (similar to nitro)
-          gemsAmount = Math.floor((payment.amount / 25000) * 2);
-        } else {
-          gemsAmount = Math.floor((payment.amount / 25000) * 2); // Tính từ amount
-        }
-
-        if (gemsAmount > 0) {
-          const userNitro = await tx.userNitro.findUnique({
-            where: { userId: payment.userId || '' },
-          });
-
-          if (userNitro) {
-            await tx.userNitro.update({
-              where: { userId: payment.userId || '' },
-              data: {
-                balance: { increment: gemsAmount },
-                updatedAt: new Date(),
-              },
-            });
-          } else {
-            await tx.userNitro.create({
-              data: {
-                id: this.snowflakeService.generate(),
-                userId: payment.userId || '',
-                balance: gemsAmount,
-              },
-            });
-          }
-        }
-
-        // 3. Tạo wallet transaction
-        const userWallet = await tx.wallet.findFirst({
-          where: { userId: payment.userId, walletType: 0 },
-        });
-
-        if (userWallet) {
-          await tx.walletTransaction.create({
-            data: {
-              id: this.snowflakeService.generate(),
-              walletId: userWallet.id,
-              transactionType: 5, // NITRO_PURCHASE
-              amount: payment.amount,
-              description: `Mua Nitro - Payment: ${payment.id}`,
-              metadata: {
-                paymentId: payment.id,
-                gemsAmount,
-              },
-            },
-          });
-        }
-
-        this.logger.log(`Payment completed successfully: ${payment.id}`);
       });
 
+      // 2. Nếu là mua nitro, cấp nitro cho user
+      if (payment.nitroId) {
+        await this.nitroService.buyNitro(payment.userId!, payment.nitroId);
+      } else if (payment.boostId) {
+        await this.boostService.buyBoost(
+          payment.guildId!,
+          payment.boostId,
+          payment.userId!,
+          payment.id,
+        );
+      }
+
+      this.logger.log(`Payment completed successfully: ${payment.id}`);
       return {
         paymentId: payment.id,
         status: 1,
         amount: payment.amount,
-        gemsAmount,
         completedAt: new Date(),
       };
     } else {
@@ -344,7 +303,7 @@ export class SepayService {
   }
 
   /**
-   * Xử lý giao dịch từ Sepay (cronjob sẽ gọi)
+   * Xử lý giao dịch từ Sepay
    */
   async processTransactions() {
     try {

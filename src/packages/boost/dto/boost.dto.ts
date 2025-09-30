@@ -11,6 +11,7 @@ export const CreateBoostSchema = z.object({
 export const UpdateBoostSchema = z.object({
   nitroId: z.string().optional(),
   nitroUsed: z.number().min(0).optional(),
+  amount: z.number().min(0).optional(),
   level: z.number().min(1).optional(),
   perks: z.record(z.string(), z.any()).optional(),
   isActive: z.boolean().optional(),
@@ -75,6 +76,13 @@ export class UpdateBoostDtoClass extends createZodDto(UpdateBoostSchema) {
     required: false,
   })
   level?: number;
+
+  @ApiProperty({
+    description: 'Số tiền của boost',
+    example: 10000,
+    required: false,
+  })
+  amount?: number;
 
   @ApiProperty({
     description: 'Perks của boost',
