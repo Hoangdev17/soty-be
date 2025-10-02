@@ -5,6 +5,10 @@ import { z } from 'zod';
 const SendMessageSchema = z.object({
   content: z.string().min(1),
   channelId: z.string().min(1),
+  type: z
+    .enum(['text', 'image', 'file', 'system', 'reply'])
+    .optional()
+    .default('text'),
   replyToMessageId: z.string().optional(),
   mentionAuthor: z.boolean().optional().default(false),
 });
@@ -22,6 +26,14 @@ export class SendMessageDto extends createZodDto(SendMessageSchema) {
     required: false,
   })
   replyToMessageId?: string;
+
+  @ApiProperty({
+    example: 'text',
+    description: 'Loại tin nhắn (text, image, file)',
+    required: false,
+    default: 'text',
+  })
+  type: 'text' | 'image' | 'file' | 'system' | 'reply';
 
   @ApiProperty({
     example: false,
