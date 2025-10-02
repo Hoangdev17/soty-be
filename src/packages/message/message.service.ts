@@ -62,6 +62,7 @@ export class MessageService {
             id: true,
             username: true,
             avatar: true,
+            avatarEffectId: true,
           },
         },
         channel: {
@@ -115,6 +116,7 @@ export class MessageService {
         id: message.author.id,
         username: message.author.username,
         avatar: message.author.avatar || '',
+        avatarEffectId: message.author.avatarEffectId || null,
       },
       channelId: message.channel.id,
       channelName: message.channel.name,
@@ -173,8 +175,8 @@ export class MessageService {
     const cacheKey = `messages:channel:${channelId}:limit:${limitNum}:offset:${offsetNum}`;
 
     // Try cache first
-    const cached = await this.cacheService.get(cacheKey);
-    if (cached) return cached;
+    // const cached = await this.cacheService.get(cacheKey);
+    // if (cached) return cached;
 
     const messages = await this.prismaService.guildMessage.findMany({
       where: { channelId },
@@ -183,7 +185,12 @@ export class MessageService {
       skip: offsetNum,
       include: {
         author: {
-          select: { id: true, username: true, avatar: true },
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+            avatarEffectId: true,
+          },
         },
         referredBy: {
           include: {
@@ -212,6 +219,7 @@ export class MessageService {
           id: message.author.id,
           username: message.author.username,
           avatar: message.author.avatar || '',
+          avatarEffectId: message.author.avatarEffectId || null,
         },
         channelId: message.channelId,
       };

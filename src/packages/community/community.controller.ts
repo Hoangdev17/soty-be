@@ -133,8 +133,13 @@ export class CommunityController {
   }
 
   @Post(':communityId/join')
-  @ApiOperation({ summary: 'Join a community or submit join request for private communities' })
-  @ApiResponse({ status: 201, description: 'Joined community or request submitted successfully' })
+  @ApiOperation({
+    summary: 'Join a community or submit join request for private communities',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Joined community or request submitted successfully',
+  })
   @ApiResponse({ status: 404, description: 'Community not found' })
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
@@ -182,7 +187,9 @@ export class CommunityController {
   }
 
   @Get(':id/join-requests')
-  @ApiOperation({ summary: 'Get pending join requests for a community (owner/admin only)' })
+  @ApiOperation({
+    summary: 'Get pending join requests for a community (owner/admin only)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Join requests retrieved successfully',
@@ -212,7 +219,11 @@ export class CommunityController {
     @Param('requestId') requestId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.communityService.approveJoinRequest(communityId, requestId, req.user.id);
+    return this.communityService.approveJoinRequest(
+      communityId,
+      requestId,
+      req.user.id,
+    );
   }
 
   @Post(':id/join-requests/:requestId/reject')
@@ -230,6 +241,10 @@ export class CommunityController {
     @Param('requestId') requestId: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.communityService.rejectJoinRequest(communityId, requestId, req.user.id);
+    return this.communityService.rejectJoinRequest(
+      communityId,
+      requestId,
+      req.user.id,
+    );
   }
 }

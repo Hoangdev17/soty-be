@@ -417,6 +417,7 @@ export class WebsocketGateway
           {
             content: data.message,
             channelId,
+            type: data.type || 'text',
             mentionAuthor: false,
             replyToMessageId: data.replyToMessageId,
           },

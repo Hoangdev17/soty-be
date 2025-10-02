@@ -106,7 +106,7 @@ export interface LeftRoomData {
 export interface SendMessagePayload {
   room: string;
   message: string;
-  type?: 'text' | 'image' | 'file' | 'system' | 'reply';
+  type?: 'text' | 'image' | 'file' | 'reply';
   replyToMessageId?: string;
   metadata?: Record<string, any>;
 }
