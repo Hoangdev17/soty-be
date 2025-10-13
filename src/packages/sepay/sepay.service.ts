@@ -99,6 +99,7 @@ export class SepayService {
           nitroAmount: request.nitroAmount || null,
           boostId: request.boostId || null,
           paymentMethod: 4, // Bank Transfer
+          avatarEffectId: request.avatarEffectId || null,
         },
       });
 
@@ -248,6 +249,22 @@ export class SepayService {
           payment.userId!,
           payment.id,
         );
+      } else if (payment.avatarEffectId) {
+        console.log('Granting avatar effect:', payment.avatarEffectId);
+        const decorator = await this.prismaService.decoratorAsset.findUnique({
+          where: { id: payment.avatarEffectId },
+        });
+        await this.prismaService.decoratorCollection.create({
+          data: {
+            id: this.snowflakeService.generate(),
+            userId: payment.userId!,
+            assetId: payment.avatarEffectId,
+            isActive: false,
+            purchasePrice: payment.amount,
+            acquiredAt: new Date(),
+            expiresAt: decorator?.expiresAt || null,
+          },
+        });
       }
 
       this.logger.log(`Payment completed successfully: ${payment.id}`);

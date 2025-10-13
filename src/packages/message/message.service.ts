@@ -647,7 +647,7 @@ export class MessageService {
   async getCommunityUnreadCount(guildId: string, userId: string) {
     // Get all channels in the guild
     const channels = await this.prismaService.guildChannel.findMany({
-      where: { guildId },
+      where: { guildId, type: 'GUILD_TEXT' },
       select: { id: true, name: true },
     });
 
@@ -687,7 +687,7 @@ export class MessageService {
       0,
     );
 
-    return { guildId, channels: channelsUnread };
+    return { guildId, channels: channelsUnread, total: totalUnread };
   }
 
   // Mark all messages in a channel as read for a user

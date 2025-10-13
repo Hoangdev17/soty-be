@@ -8,6 +8,7 @@ export const CreatePaymentSchema = z.object({
   content: z.string().min(1, 'Content is required'),
   nitroId: z.string().optional(),
   nitroAmount: z.number().min(1).optional(),
+  avatarEffectId: z.string().optional(),
   boostId: z.string().optional(),
 });
 
@@ -70,6 +71,13 @@ export class CreatePaymentDtoClass extends createZodDto(CreatePaymentSchema) {
     required: false,
   })
   boostId?: string;
+
+  @ApiProperty({
+    description: 'ID của Avatar Effect (tùy chọn)',
+    example: '123456789012345678',
+    required: false,
+  })
+  avatarEffectId?: string;
 }
 
 // DTO for complete payment response

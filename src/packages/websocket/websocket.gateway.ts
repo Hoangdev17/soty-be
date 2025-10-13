@@ -424,6 +424,8 @@ export class WebsocketGateway
           client.user.sub,
         );
 
+        await this.messageService.markChannelAsRead(channelId, client.user.sub);
+
         this.logger.log(`Created new message ${serviceResponse.id}`);
 
         // Use service response directly as it already has proper format

@@ -19,6 +19,7 @@ model DecoratorAsset {
     @@index([name])
     @@index([assetType, price])
     @@map("decorator_asset")
+    Payment Payment[] @relation("DecoratorAssetPayment")
 }
 
 model DecoratorCollection {
