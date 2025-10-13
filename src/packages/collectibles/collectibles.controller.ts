@@ -149,7 +149,7 @@ export class CollectiblesController {
 
   @Get('/user/@me')
   @ApiOperation({ summary: 'Get user owned decorations or effects' })
-  @ApiCookieAuth('cookie-auth')
+  @ApiCookieAuth('access-token')
   @UseGuards(JwtAuthGuard)
   @ApiQuery({
     name: 'category',

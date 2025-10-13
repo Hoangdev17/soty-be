@@ -63,6 +63,9 @@ model Payment {
   // Nitro purchase fields
   nitroId     String? // ID của Nitro offering được mua
   nitro       Nitro?  @relation("NitroPayment", fields: [nitroId], references: [id])
+
+  avatarEffectId String? // ID của Avatar Effect được mua
+  avatarEffect   DecoratorAsset? @relation("DecoratorAssetPayment", fields: [avatarEffectId], references: [id])
   nitroAmount Int?    // Số gems nhận được từ purchase
 
   // Boost purchase fields
