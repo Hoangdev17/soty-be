@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../core/prisma/prisma.service';
-import { GuildPermissions } from '../../constants/guild-permissions';
+import {
+  GuildPermissions,
+  PERMISSION_VALUES,
+} from '../../constants/guild-permissions';
 
 @Injectable()
 export class PermissionsService {
@@ -9,19 +12,19 @@ export class PermissionsService {
   async hasPermission(
     guildId: string,
     userId: string,
-    permission: string,
+    permission: bigint | string, // có thể truyền bigint hoặc string
   ): Promise<boolean> {
-    // Guild owner has all permissions
+    // Guild owner có tất cả quyền
     const guild = await this.prisma.guild.findUnique({
       where: { id: guildId },
       select: { ownerId: true },
     });
 
     if (guild?.ownerId === userId) {
-      return true; // Guild owner has all permissions
+      return true;
     }
 
-    // Get user's combined permissions from roles
+    // Lấy member kèm roles
     const member = await this.prisma.guildMember.findFirst({
       where: {
         guildId,
@@ -37,20 +40,28 @@ export class PermissionsService {
     });
 
     if (!member) {
-      return false; // User is not a member
+      return false; // User không phải thành viên
     }
 
-    const combinedPermissions: string[] = [];
+    // Combine tất cả permissions của các role thành 1 bigint
+    let combinedPermissions = 0n;
     for (const memberRole of member.roles) {
-      // Combine permissions arrays
-      memberRole.role.permissions.forEach((permission) => {
-        if (!combinedPermissions.includes(permission)) {
-          combinedPermissions.push(permission);
-        }
-      });
+      combinedPermissions |= memberRole.role.permissions; // role.permissions là bigint
     }
 
-    return combinedPermissions.includes(permission);
+    // Nếu truyền string, convert sang bigint
+    let permissionValue: bigint;
+    if (typeof permission === 'string') {
+      permissionValue = PERMISSION_VALUES[permission];
+      if (!permissionValue) {
+        return false; // permission không hợp lệ
+      }
+    } else {
+      permissionValue = permission;
+    }
+
+    // Check quyền bằng bitwise
+    return GuildPermissions.hasPermission(combinedPermissions, permissionValue);
   }
 
   async requirePermission(

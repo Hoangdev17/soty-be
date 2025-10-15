@@ -10,6 +10,7 @@ import {
   PermissionUtils,
 } from './constants/guild-permissions';
 import { ChannelType } from '@prisma/client';
+import { convertBigIntToString } from '../../utils/convertBigIntToString';
 
 @Injectable()
 export class CommunityService {
@@ -59,27 +60,27 @@ export class CommunityService {
 
     // Create Admin role for guild owner
     const adminRoleId = this.snowflake.generate();
-    const adminRole = await this.prisma.guildRole.create({
+    await this.prisma.guildRole.create({
       data: {
         id: adminRoleId,
-        name: 'ADMINISTRATOR',
+        name: 'Administrator',
         guildId: guildId,
-        permissions: ['ADMINISTRATOR'],
+        permissions: GuildPermissions.ADMINISTRATOR,
         position: 1,
         hoist: true,
         mentionable: true,
-        color: '0xff0000', // Red color for admin
+        managed: false,
       },
     });
 
     // Create guild member for owner
     const ownerMemberId = this.snowflake.generate();
-    const ownerMember = await this.prisma.guildMember.create({
+    await this.prisma.guildMember.create({
       data: {
         id: ownerMemberId,
         guildId: guildId,
-        userId,
-        permissions: ['ADMINISTRATOR'],
+        userId: userId,
+        permissions: PermissionUtils.getDefaultPermissions(),
       },
     });
 
@@ -276,7 +277,9 @@ export class CommunityService {
 
     // Cache for 5 minutes
     await this.cacheService.set(cacheKey, guild, 300);
-    return guild;
+
+    const guildFinal = convertBigIntToString(guild);
+    return guildFinal;
   }
 
   async update(id: string, updateCommunityDto: UpdateCommunityDto) {
@@ -575,16 +578,11 @@ export class CommunityService {
     }
 
     // Calculate combined permissions from all roles (String[] format)
-    const combinedPermissions: string[] = [];
+    let combinedPermissions: bigint = 0n;
     const memberRoles = member.roles.map((r) => r.role);
 
     for (const role of memberRoles) {
-      // Combine permissions arrays
-      role.permissions.forEach((permission) => {
-        if (!combinedPermissions.includes(permission)) {
-          combinedPermissions.push(permission);
-        }
-      });
+      combinedPermissions |= role.permissions; // role.permissions là bigint
     }
 
     const result = {
@@ -646,7 +644,9 @@ export class CommunityService {
 
     // Cache for 5 minutes
     await this.cacheService.set(cacheKey, communities, 300);
-    return communities;
+
+    const communitiesFinal = convertBigIntToString(communities);
+    return communitiesFinal;
   }
 
   async getJoinRequests(communityId: string, userId: string) {

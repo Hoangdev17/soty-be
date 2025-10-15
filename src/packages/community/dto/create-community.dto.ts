@@ -16,12 +16,10 @@ export const CreateCommunitySchema = z.object({
     .describe('Mô tả về community'),
   avatar: z
     .string()
-    .url('Avatar phải là URL hợp lệ')
     .optional()
     .describe('URL ảnh đại diện của community'),
   banner: z
     .string()
-    .url('Banner phải là URL hợp lệ')
     .optional()
     .describe('URL ảnh banner của community'),
   isPrivate: z.boolean().describe('Community có riêng tư hay không'),

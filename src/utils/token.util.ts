@@ -18,12 +18,12 @@ export class TokenUtil {
   async generateTokens(payload: TokenPayload): Promise<Tokens> {
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_ACCESS_SECRET,
-      expiresIn: '15m',
+      expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     });
 
     const refreshToken = await this.jwtService.signAsync(payload, {
       secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: '7d',
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
     });
 
     return { accessToken, refreshToken };

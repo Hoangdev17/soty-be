@@ -16,8 +16,8 @@ import { TokenUtil } from 'src/utils/token.util';
     PassportModule,
     JwtModule.register({
       global: true,
-      secret: process.env.AUTH_JWT_SECRET,
-      signOptions: { expiresIn: '1h' },
+      secret: process.env.JWT_ACCESS_SECRET,
+      signOptions: { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN },
     }),
     UsersModule,
   ],

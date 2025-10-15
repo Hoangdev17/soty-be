@@ -185,21 +185,21 @@ export class PermissionUtils {
   /**
    * Get default permissions as String[]
    */
-  static getDefaultPermissions(): string[] {
-    return [
-      'VIEW_CHANNELS',
-      'SEND_MESSAGES',
-      'EMBED_LINKS',
-      'ATTACH_FILES',
-      'READ_MESSAGE_HISTORY',
-      'ADD_REACTIONS',
-      'USE_EXTERNAL_EMOJIS',
-      'CONNECT',
-      'SPEAK',
-      'USE_VAD',
-      'STREAM',
-      'USE_SLASH_COMMANDS',
-    ];
+  static getDefaultPermissions(): bigint {
+    return (
+      GuildPermissions.VIEW_CHANNELS |
+      GuildPermissions.SEND_MESSAGES |
+      GuildPermissions.EMBED_LINKS |
+      GuildPermissions.ATTACH_FILES |
+      GuildPermissions.READ_MESSAGE_HISTORY |
+      GuildPermissions.ADD_REACTIONS |
+      GuildPermissions.USE_EXTERNAL_EMOJIS |
+      GuildPermissions.CONNECT |
+      GuildPermissions.SPEAK |
+      GuildPermissions.USE_VAD |
+      GuildPermissions.STREAM |
+      GuildPermissions.USE_SLASH_COMMANDS
+    );
   }
 
   /**

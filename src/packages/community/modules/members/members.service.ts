@@ -10,6 +10,7 @@ import { GuildPermissions } from '../../constants/guild-permissions';
 import { WebsocketGateway } from '../../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../../websocket/websocket-events.types';
 import { CacheService } from '../../../../core/cache/cache.service';
+import { convertBigIntToString } from '../../../../utils/convertBigIntToString';
 
 @Injectable()
 export class MembersService {
@@ -55,7 +56,7 @@ export class MembersService {
         id: memberId,
         guildId: communityId,
         userId,
-        permissions: [GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS.toString()],
+        permissions: GuildPermissions.DEFAULT_EVERYONE_PERMISSIONS,
       },
       include: {
         user: {
@@ -178,7 +179,7 @@ export class MembersService {
   }
 
   async getCommunityMembers(communityId: string) {
-    return this.prisma.guildMember.findMany({
+    const member = await this.prisma.guildMember.findMany({
       where: { guildId: communityId },
       include: {
         user: {
@@ -196,6 +197,9 @@ export class MembersService {
         },
       },
     });
+
+    const members = convertBigIntToString(member);
+    return members;
   }
 
   async getMemberPermissions(guildId: string, userId: string) {
@@ -218,16 +222,12 @@ export class MembersService {
     }
 
     // Calculate combined permissions from all roles (String[] format)
-    const combinedPermissions: string[] = [];
+    let combinedPermissions: bigint = 0n;
     const memberRoles = member.roles.map((r) => r.role);
 
     for (const role of memberRoles) {
       // Combine permissions arrays
-      role.permissions.forEach((permission) => {
-        if (!combinedPermissions.includes(permission)) {
-          combinedPermissions.push(permission);
-        }
-      });
+      combinedPermissions |= role.permissions;
     }
 
     return {
