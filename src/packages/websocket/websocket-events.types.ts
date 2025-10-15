@@ -187,7 +187,7 @@ export interface MemberData {
     role: {
       id: string;
       name: string;
-      permissions: string[];
+      permissions: BigInt;
       // Add other fields if needed
     };
   }[];

@@ -4,6 +4,8 @@ import { CacheService } from '../../../../core/cache/cache.service';
 import { SnowflakeID } from '../../../../utils/snowflake';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { PermissionUtils } from '../../constants/guild-permissions';
+import { convertBigIntToString } from '../../../../utils/convertBigIntToString';
 
 @Injectable()
 export class RolesService {
@@ -22,12 +24,15 @@ export class RolesService {
 
     const newPosition = (highestRole?.position || 0) + 1;
 
+    const permissionsBigInt = PermissionUtils.stringArrayToBigInt(
+      createRoleDto.permissions,
+    );
     const role = await this.prisma.guildRole.create({
       data: {
         id: this.snowflake.generate(),
         name: createRoleDto.name,
         guildId,
-        permissions: createRoleDto.permissions,
+        permissions: permissionsBigInt,
         color: createRoleDto.color,
         hoist: createRoleDto.hoist,
         mentionable: createRoleDto.mentionable,
@@ -125,7 +130,9 @@ export class RolesService {
 
     // Cache for 5 minutes
     await this.cacheService.set(cacheKey, roles, 300);
-    return roles;
+
+    const rolesFinal = convertBigIntToString(roles);
+    return rolesFinal;
   }
 
   async assignRoleToMember(guildId: string, memberId: string, roleId: string) {
@@ -162,6 +169,8 @@ export class RolesService {
       );
       // Also clear member roles cache
       await this.cacheService.del(`member:${guildId}:${member.userId}:roles`);
+      await this.cacheService.del(`roles:guild:${guildId}`);
+      await this.cacheService.del(`community:${guildId}`);
     }
 
     return assignment;
@@ -201,6 +210,8 @@ export class RolesService {
       );
       // Also clear member roles cache
       await this.cacheService.del(`member:${guildId}:${member.userId}:roles`);
+      await this.cacheService.del(`roles:guild:${guildId}`);
+      await this.cacheService.del(`community:${guildId}`);
     }
 
     return result;

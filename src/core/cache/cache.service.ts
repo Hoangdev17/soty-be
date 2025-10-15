@@ -34,7 +34,11 @@ export class CacheService {
     }
 
     try {
-      const raw = JSON.stringify(value);
+      // JSON.stringify với replacer để convert BigInt sang string
+      const raw = JSON.stringify(value, (_, v) =>
+        typeof v === 'bigint' ? v.toString() : v,
+      );
+
       if (typeof ttlSeconds === 'number') {
         return await this.client.set(key, raw, 'EX', ttlSeconds);
       }

@@ -188,7 +188,7 @@ model GuildMember {
 
   // The overall set of permissions for this member, taking only roles and owner status into account
   // TODO: Implement this
-  permissions String[]
+  permissions BigInt @default(0)
 
   // pronouns of the user in the guild
   pronouns        String?
@@ -280,7 +280,7 @@ model GuildRole {
   name String
 
   // The permissions of the role 
-  permissions String[]
+  permissions BigInt @default(0)
 
   // The position of the role in the hierarchy
   position Int? @default(0)

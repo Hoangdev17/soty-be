@@ -15,7 +15,10 @@ import { CreateChannelDto } from './dto/create-channel.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../guards/permissions.guard';
-import { RequireManageChannels } from '../../decorators/permission-shortcuts.decorator';
+import {
+  RequireAdministrator,
+  RequireManageChannels,
+} from '../../decorators/permission-shortcuts.decorator';
 import { UpdateChannelDto } from './dto/update-channel.dto';
 import type { AuthenticatedRequest } from '../../../../core/auth/dto/request-with-auth.dto';
 
@@ -33,7 +36,7 @@ export class ChannelsController {
   })
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @ApiBearerAuth('access-token')
-  @RequireManageChannels()
+  @RequireAdministrator()
   createCategory(
     @Param('guildId') guildId: string,
     @Body() dto: CreateCategoryDto,
