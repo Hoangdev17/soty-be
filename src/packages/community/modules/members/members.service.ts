@@ -188,6 +188,7 @@ export class MembersService {
             username: true,
             globalName: true,
             avatar: true,
+            presence: true,
           },
         },
         roles: {

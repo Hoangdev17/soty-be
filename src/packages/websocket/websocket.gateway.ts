@@ -37,6 +37,8 @@ import type {
   RoomUsersData,
 } from './websocket-events.types';
 import { UsersService } from '../users/users.service';
+import { PresenceStatus } from '@prisma/client';
+import { CommunityService } from '../community/community.service';
 
 declare module 'socket.io' {
   interface Socket {
@@ -69,9 +71,10 @@ export class WebsocketGateway
     private readonly channelsService: ChannelsService,
     @Inject(forwardRef(() => UsersService))
     private readonly userService: UsersService,
+    private readonly communityService: CommunityService,
   ) {}
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     try {
       // Extract token from handshake query or headers
       const token =
@@ -89,9 +92,42 @@ export class WebsocketGateway
             secret,
           });
           client.user = payload;
+
+          await this.userService.changePresence(
+            payload.sub,
+            PresenceStatus.ONLINE,
+          );
+
+          this.emitToUser(payload.sub, 'online', 'online');
+
+          const friends = await this.userService.getUserFriendList(payload.sub);
+
+          for (let friend of friends) {
+            this.emitToUser(
+              friend.friend.id,
+              'presence_online_friend',
+              payload.sub,
+            );
+            this.logger.log(`Sent status to client ${friend.id}`);
+          }
+
+          const communities = await this.communityService.getUserCommunities(
+            payload.sub,
+          );
+
+          for (let community of communities) {
+            this.broadcastToCommunity(
+              community.id,
+              'presence_online_community',
+              payload.sub,
+            );
+          }
+
           this.logger.log(
             `Client connected: ${client.id}, User: ${payload.sub}`,
           );
+
+          this.logger.log(`Update presence of ${payload.sub}`);
         } catch (error) {
           const err = error as Error;
           this.logger.error(
@@ -118,9 +154,35 @@ export class WebsocketGateway
     }
   }
 
-  handleDisconnect(client: Socket) {
+  async handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
-    // Cleanup logic can be added here
+    this.userService.changePresence(
+      client.user?.sub || '',
+      PresenceStatus.OFFLINE,
+    );
+
+    const payload = client.user;
+    if (!payload) return;
+
+    const friends = await this.userService.getUserFriendList(payload.sub);
+
+    for (let friend of friends) {
+      this.emitToUser(friend.friend.id, 'presence_offline_friend', payload.sub);
+      this.logger.log(`Sent status to client ${friend.id}`);
+    }
+
+    const communities = await this.communityService.getUserCommunities(
+      payload.sub,
+    );
+
+    for (let community of communities) {
+      this.broadcastToCommunity(
+        community.id,
+        'presence_offline_community',
+        payload.sub,
+      );
+    }
+    this.logger.log(`Client offline`);
   }
 
   @SubscribeMessage(WEBSOCKET_EVENTS.JOIN_ROOM)

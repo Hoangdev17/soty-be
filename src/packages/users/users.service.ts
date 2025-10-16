@@ -10,7 +10,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
-import { includes } from 'zod';
+import { Presence, PresenceStatus } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -347,5 +347,30 @@ export class UsersService {
         friend: true,
       },
     });
+  }
+
+  async changePresence(userId: string, status: PresenceStatus) {
+    await this.cacheService.del(`user:id:${userId}`);
+    // Lấy user
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not exist');
+
+    // Xây dựng object presence mới
+    const newPresence = {
+      status,
+      customText: user.presence?.customText ?? null,
+      activities: user.presence?.activities ?? [],
+      lastUpdated: new Date(),
+    };
+
+    // Update user.presence
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { presence: newPresence },
+    });
+
+    // await this.cacheService.cacheUser(updatedUser);
+
+    return updatedUser.presence;
   }
 }
