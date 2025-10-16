@@ -7,6 +7,7 @@ import { MessageModule } from '../message/message.module';
 import { MembersModule } from '../community/modules/members/members.module';
 import { ChannelsModule } from '../community/modules/channels/channels.module';
 import { UsersModule } from '../users/users.module';
+import { CommunityService } from '../community/community.service';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { UsersModule } from '../users/users.module';
     forwardRef(() => ChannelsModule),
     forwardRef(() => UsersModule), // ✅ cần có
   ],
-  providers: [WebsocketGateway, PrismaService, SnowflakeID],
+  providers: [WebsocketGateway, PrismaService, SnowflakeID, CommunityService],
   exports: [WebsocketGateway],
 })
 export class WebsocketModule {}
