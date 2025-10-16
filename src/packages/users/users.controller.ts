@@ -65,4 +65,83 @@ export class UsersController {
     const gems = await this.usersService.fetchUserGems(req.user.id);
     return { gems };
   }
+
+  @Get('/friends')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Lấy danh sách bnaj bè' })
+  async getUserFriendList(@Req() req: AuthenticatedRequest) {
+    return await this.usersService.getUserFriendList(req.user.id);
+  }
+
+  @Post('/friends/requests')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Gửi yêu cầu kết bạn' })
+  async sendFriendRequest(
+    @Req() req: AuthenticatedRequest,
+    @Body('receiverId') receiverId: string,
+  ) {
+    return await this.usersService.sendFriendRequest(req.user.id, receiverId);
+  }
+
+  @Get('/friends/requests')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Lấy danh sách yêu cầu kết bạn' })
+  async getReceivedFriendRequests(@Req() req: AuthenticatedRequest) {
+    return await this.usersService.getUserFriendRequests(req.user.id);
+  }
+
+  @Get('/friends/requests/me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'lấy danh sách đã gửi' })
+  async getSentRequest(@Req() req: AuthenticatedRequest) {
+    return await this.usersService.getFriendRequestSent(req.user.id);
+  }
+
+  @Patch('/friends/request/:requestId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Chấp nhận yêu cầu kết bạn' })
+  async acceptFriendRequest(
+    @Req() req: AuthenticatedRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    return await this.usersService.acceptFriendRequest(requestId, req.user.id);
+  }
+
+  @Patch('/friends/request/:requestId/reject')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Từ chối yêu cầu kết bạn' })
+  async rejectFriendRequest(
+    @Req() req: AuthenticatedRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    return await this.usersService.rejectFriendRequest(requestId, req.user.id);
+  }
+
+  @Delete('/friends/request/:requestId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Hủy yêu cầu kết bạn đã gửi' })
+  async deleteFriendRequest(
+    @Req() req: AuthenticatedRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    return await this.usersService.deleteFriendRequest(requestId);
+  }
+
+  @Delete('/friends/:friendId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Xóa bạn bè' })
+  async deleteFriend(
+    @Req() req: AuthenticatedRequest,
+    @Param('friendId') friendId: string,
+  ) {
+    return await this.usersService.deleteFriendship(req.user.id, friendId);
+  }
 }

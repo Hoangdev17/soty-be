@@ -8,7 +8,9 @@ import { CacheService } from 'src/core/cache/cache.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import * as bcrypt from 'bcrypt';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
+import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
+import { includes } from 'zod';
 
 @Injectable()
 export class UsersService {
@@ -16,6 +18,7 @@ export class UsersService {
     private prisma: PrismaService,
     private snowFlakeId: SnowflakeID,
     private cacheService: CacheService,
+    private ws: WebsocketGateway,
   ) {}
 
   async createUser(dto: CreateUserDto) {
@@ -148,5 +151,201 @@ export class UsersService {
       where: { userId },
     });
     return userNitro?.balance || 0;
+  }
+
+  async sendFriendRequest(senderId: string, receiverId: string) {
+    if (senderId === receiverId) {
+      throw new BadRequestException(
+        'Không thể gửi yêu cầu kết bạn cho chính mình',
+      );
+    }
+
+    // Kiểm tra xem người nhận có tồn tại không
+    const receiver = await this.prisma.user.findUnique({
+      where: { id: receiverId, deleted: false } as any,
+    });
+    if (!receiver) {
+      throw new NotFoundException('Người dùng nhận không tồn tại');
+    }
+
+    // Kiểm tra xem đã có yêu cầu kết bạn đang chờ xử lý hay chưa
+    const existingRequest = await this.prisma.friendRequest.findFirst({
+      where: {
+        senderId,
+        receiverId,
+        status: 'PENDING',
+      },
+    });
+    if (existingRequest) {
+      throw new BadRequestException('Đã có yêu cầu kết bạn đang chờ xử lý');
+    }
+
+    // Kiểm tra xem hai người đã là bạn bè chưa
+    const existingFriendship = await this.prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId: senderId, friendId: receiverId },
+          { userId: receiverId, friendId: senderId },
+        ],
+      },
+    });
+    if (existingFriendship) {
+      throw new BadRequestException('Hai người đã là bạn bè');
+    }
+
+    // Tạo yêu cầu kết bạn mới
+    const friendRequest = await this.prisma.friendRequest.create({
+      data: {
+        id: this.snowFlakeId.generate(),
+        senderId,
+        receiverId,
+        status: 'PENDING',
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    this.ws.emitToUser(
+      receiverId,
+      WEBSOCKET_EVENTS.SEND_FRIEND_REQUEST,
+      friendRequest,
+    );
+
+    return friendRequest;
+  }
+
+  async getUserFriendRequests(userId: string) {
+    return await this.prisma.friendRequest.findMany({
+      where: { receiverId: userId, status: 'PENDING' },
+      include: { sender: true },
+    });
+  }
+
+  async getFriendRequestSent(userId: string) {
+    return await this.prisma.friendRequest.findMany({
+      where: { senderId: userId, status: 'PENDING' },
+      include: {
+        receiver: {
+          select: {
+            id: true,
+            avatar: true,
+            username: true,
+          },
+        },
+      },
+    });
+  }
+
+  async acceptFriendRequest(requestId: string, userId: string) {
+    const request = await this.prisma.friendRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request || request.receiverId !== userId) {
+      throw new NotFoundException('Yêu cầu kết bạn không tồn tại');
+    }
+    if (request.status !== 'PENDING') {
+      throw new BadRequestException('Yêu cầu kết bạn đã được xử lý');
+    }
+
+    // Cập nhật trạng thái yêu cầu thành accepted
+    await this.prisma.friendRequest.update({
+      where: { id: requestId },
+      data: { status: 'ACCEPTED' },
+    });
+
+    // Tạo bản ghi Friendship cho cả hai người
+    await this.prisma.friendship.createMany({
+      data: [
+        {
+          id: this.snowFlakeId.generate(),
+          userId: request.senderId,
+          friendId: request.receiverId,
+        },
+
+        {
+          id: this.snowFlakeId.generate(),
+          userId: request.receiverId,
+          friendId: request.senderId,
+        },
+      ],
+    });
+
+    return { message: 'Kết bạn thành công' };
+  }
+
+  async rejectFriendRequest(requestId: string, userId: string) {
+    const request = await this.prisma.friendRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request || request.receiverId !== userId) {
+      throw new NotFoundException('Yêu cầu kết bạn không tồn tại');
+    }
+    if (request.status !== 'PENDING') {
+      throw new BadRequestException('Yêu cầu kết bạn đã được xử lý');
+    }
+
+    // Cập nhật trạng thái yêu cầu thành rejected
+    await this.prisma.friendRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED' },
+    });
+
+    return { message: 'Đã từ chối yêu cầu kết bạn' };
+  }
+
+  async deleteFriendRequest(requestId: string) {
+    const request = await this.prisma.friendRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) {
+      throw new NotFoundException('Yêu cầu kết bạn không tồn tại');
+    }
+
+    await this.prisma.friendRequest.delete({
+      where: { id: requestId },
+    });
+
+    return { message: 'Đã xóa yêu cầu kết bạn' };
+  }
+
+  async deleteFriendship(userId: string, friendId: string) {
+    const friendship = await this.prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { userId, friendId },
+          { userId: friendId, friendId: userId },
+        ],
+      },
+    });
+    if (!friendship) {
+      throw new NotFoundException('Bạn bè không tồn tại');
+    }
+
+    await this.prisma.friendship.deleteMany({
+      where: {
+        OR: [
+          { userId, friendId },
+          { userId: friendId, friendId: userId },
+        ],
+      },
+    });
+
+    return { message: 'Đã xóa bạn bè' };
+  }
+
+  async getUserFriendList(userId: string) {
+    return await this.prisma.friendship.findMany({
+      where: { userId },
+      include: {
+        friend: true,
+      },
+    });
   }
 }

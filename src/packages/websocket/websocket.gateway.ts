@@ -67,7 +67,7 @@ export class WebsocketGateway
     private readonly membersService: MembersService,
     @Inject(forwardRef(() => ChannelsService))
     private readonly channelsService: ChannelsService,
-    private readonly cacheService: CacheService,
+    @Inject(forwardRef(() => UsersService))
     private readonly userService: UsersService,
   ) {}
 

@@ -1,13 +1,12 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { WebsocketGateway } from './websocket.gateway';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaService } from '../../core/prisma/prisma.service';
-import { MessageModule } from '../message/message.module';
-import { MessageService } from '../message/message.service';
+import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SnowflakeID } from 'src/utils/snowflake';
+import { MessageModule } from '../message/message.module';
 import { MembersModule } from '../community/modules/members/members.module';
 import { ChannelsModule } from '../community/modules/channels/channels.module';
-import { UsersService } from '../users/users.service';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -18,14 +17,9 @@ import { UsersService } from '../users/users.service';
     forwardRef(() => MessageModule),
     forwardRef(() => MembersModule),
     forwardRef(() => ChannelsModule),
+    forwardRef(() => UsersModule), // ✅ cần có
   ],
-  providers: [
-    WebsocketGateway,
-    PrismaService,
-    MessageService,
-    SnowflakeID,
-    UsersService,
-  ],
+  providers: [WebsocketGateway, PrismaService, SnowflakeID],
   exports: [WebsocketGateway],
 })
 export class WebsocketModule {}

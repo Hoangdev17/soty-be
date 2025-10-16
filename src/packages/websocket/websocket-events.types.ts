@@ -44,6 +44,9 @@ export const WEBSOCKET_EVENTS = {
   MESSAGES_PINNED: 'messages_pinned',
   MESSAGES_UNPINNED: 'messages_unpinned',
 
+  //frend request event
+  SEND_FRIEND_REQUEST: 'friend_request',
+
   // Notification events
   NOTIFICATION: 'notification',
 

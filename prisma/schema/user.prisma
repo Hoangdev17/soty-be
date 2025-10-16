@@ -110,7 +110,14 @@ model User {
   createdAt        DateTime @default(now())          // Thời điểm tạo user
   updatedAt        DateTime @updatedAt               // Thời điểm cập nhật gần nhất
 
-                                 
+  // Yêu cầu kết bạn
+  sentRequests     FriendRequest[] @relation("SentRequests")
+  receivedRequests FriendRequest[] @relation("ReceivedRequests")
+
+  // Danh sách bạn bè
+  friendships      Friendship[]     @relation("UserFriendships")
+  friends          Friendship[]     @relation("FriendOfUser")   
+
   GuildMemberBanned GuildMemberBanned[]
   GuildMember GuildMember[]
   GuildJoinRequest GuildJoinRequest[]
@@ -128,12 +135,49 @@ model User {
   
   nitro UserNitro?
 
-  @@index([id, email])
-  @@map("user")  
+   
   GuildChannel GuildChannel[]
   DecoratorAsset DecoratorAsset[]
   DecoratorCollection DecoratorCollection[]
   NitroPurchase NitroPurchase[]
 
   BoostPurchase BoostPurchase[]
+  
+  @@index([id, email])
+  @@map("user") 
+ 
 }
+
+model FriendRequest {
+  id          String   @id @map("_id")  
+  senderId    String
+  receiverId  String
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sender   User @relation("SentRequests", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedRequests", fields: [receiverId], references: [id])
+
+  @@map("friend_request")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Friendship {
+  id        String    @id @map("_id")  
+  userId    String
+  friendId  String
+  createdAt DateTime @default(now())
+
+  user   User @relation("UserFriendships", fields: [userId], references: [id])
+  friend User @relation("FriendOfUser", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId])
+  @@map("friendship")
+}
+
