@@ -10,6 +10,7 @@ import {
   Request,
   BadRequestException,
   Req,
+  Query,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -39,6 +40,14 @@ export class UsersController {
   @ApiBearerAuth('access-token')
   async getById(@Req() req: AuthenticatedRequest) {
     return await this.usersService.findById(req.user.id);
+  }
+
+  @Get('/findById')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'lấy thông tin user theo id' })
+  async findOne(@Query('userId') userId: string) {
+    return await this.usersService.findById(userId);
   }
 
   @Patch('')
