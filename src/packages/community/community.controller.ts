@@ -31,6 +31,8 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import type { AuthenticatedRequest } from '../../core/auth/dto/request-with-auth.dto';
+import { CreateFeedPostDto } from './dto/create-post.dto';
+import { UpdateFeedPostDto } from './dto/update-post.dto';
 
 @ApiTags('Community')
 @Controller('community')
@@ -246,5 +248,128 @@ export class CommunityController {
       requestId,
       req.user.id,
     );
+  }
+
+  @Get('/feed/:guildId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get post in community' })
+  async getPostByCommunity(@Param('guildId') guildId: string) {
+    return await this.communityService.getPostCommunity(guildId);
+  }
+
+  @Get('/feed/:guildId/:postId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get post in community' })
+  async getPostById(@Param('postId') postId: string) {
+    return await this.communityService.getPostById(postId);
+  }
+
+  @Post('/feed/:guildId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Create new post' })
+  async createPost(
+    @Body() dto: CreateFeedPostDto,
+    @Req() req: AuthenticatedRequest,
+    @Param('guildId') guildId: string,
+  ) {
+    return await this.communityService.createPost(dto, req.user.id, guildId);
+  }
+
+  @Delete('/feed/:guildId/:postId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'delete a post' })
+  async deletePost(@Param('postId') postId: string) {
+    return await this.communityService.deletePost(postId);
+  }
+
+  @Patch('/feed/:guildId/:postId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'update post in community' })
+  async updatePost(
+    @Param('postId') postId: string,
+    @Body() dto: UpdateFeedPostDto,
+  ) {
+    await this.communityService.updatePost(dto, postId);
+  }
+
+  @Post('/feed/:guildId/:postId/like')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'like post in community' })
+  async likePost(
+    @Param('postId') postId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return await this.communityService.likePost(postId, req.user.id);
+  }
+
+  @Delete('/feed/:guildId/:postId/unlike')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'like post in community' })
+  async unlikePost(
+    @Param('guildId') guildId: string,
+    @Param('postId') postId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return await this.communityService.unlikePost(guildId, postId, req.user.id);
+  }
+
+  @Get('/feed/:guildId/:postId/like')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get user like post in community' })
+  async getUserLikedPost(@Param('postId') postId: string) {
+    return await this.communityService.getUserLiked(postId);
+  }
+
+  @Get('/feed/:guildId/:postId/comment')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get comment post in community' })
+  async getCommentByPost(@Param('postId') postId: string) {
+    return await this.communityService.getCommentByPost(postId);
+  }
+
+  @Post('/feed/:guildId/:postId/comment')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get comment post in community' })
+  async createComment(
+    @Param('guildId') guildId: string,
+    @Param('postId') postId: string,
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { content: string },
+  ) {
+    return await this.communityService.createComment(
+      guildId,
+      postId,
+      req.user.id,
+      body.content,
+    );
+  }
+
+  @Delete('/feed/:guildId/:postId/comment/:commentId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get comment post in community' })
+  async deleteComment(@Param('commentId') commentId: string) {
+    return await this.communityService.deleteComment(commentId);
+  }
+
+  @Patch('/feed/:guildId/:postId/comment/:commentId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get comment post in community' })
+  async updateComment(
+    @Param('commentId') commentId: string,
+    @Body() content: string,
+  ) {
+    return await this.communityService.updateComment(commentId, content);
   }
 }

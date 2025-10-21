@@ -12,6 +12,9 @@ import { ThreadsModule } from './modules/threads/threads.module';
 import { EventsModule } from './modules/events/events.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { ChannelsService } from './modules/channels/channels.service';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
+import { MessageService } from '../message/message.service';
+import { UsersService } from '../users/users.service';
 
 @Module({
   imports: [
@@ -25,7 +28,15 @@ import { ChannelsService } from './modules/channels/channels.service';
   ],
 
   controllers: [CommunityController],
-  providers: [CommunityService, PermissionsGuard, PrismaService, SnowflakeID],
+  providers: [
+    CommunityService,
+    PermissionsGuard,
+    PrismaService,
+    SnowflakeID,
+    WebsocketGateway,
+    MessageService,
+    UsersService,
+  ],
   exports: [
     CommunityService,
     PermissionsGuard,
