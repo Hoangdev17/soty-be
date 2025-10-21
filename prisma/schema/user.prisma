@@ -146,6 +146,9 @@ model User {
   @@index([id, email])
   @@map("user") 
  
+  FeedPost FeedPost[]
+  FeedLike FeedLike[]
+  FeedComment FeedComment[]
 }
 
 model FriendRequest {

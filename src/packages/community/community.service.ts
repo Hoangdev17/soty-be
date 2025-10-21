@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CacheService } from '../../core/cache/cache.service';
 import { CreateCommunityDto } from './dto/create-community.dto';
@@ -11,6 +11,10 @@ import {
 } from './constants/guild-permissions';
 import { ChannelType } from '@prisma/client';
 import { convertBigIntToString } from '../../utils/convertBigIntToString';
+import { CreateFeedPostDto } from './dto/create-post.dto';
+import { UpdateFeedPostDto } from './dto/update-post.dto';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
+import { string } from 'zod';
 
 @Injectable()
 export class CommunityService {
@@ -18,6 +22,8 @@ export class CommunityService {
     private prisma: PrismaService,
     private snowflake: SnowflakeID,
     private cacheService: CacheService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private ws: WebsocketGateway,
   ) {}
 
   async create(createCommunityDto: CreateCommunityDto, userId: string) {
@@ -813,5 +819,252 @@ export class CommunityService {
     });
 
     return { message: 'Join request rejected', request: updatedRequest };
+  }
+
+  async getPostCommunity(guildId: string) {
+    const posts = await this.prisma.feedPost.findMany({
+      where: { guildId },
+      include: {
+        FeedComment: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        FeedLike: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        author: {
+          select: { id: true, username: true, avatar: true },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    return posts;
+  }
+
+  async getPostById(postId: string) {
+    const res = await this.prisma.feedPost.findUnique({
+      where: { id: postId },
+      include: {
+        FeedComment: {
+          select: {
+            id: true,
+            postId: true,
+            authorId: true,
+            content: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        FeedLike: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        author: {
+          select: { id: true, username: true, avatar: true },
+        },
+      },
+    });
+
+    return res;
+  }
+
+  async createPost(
+    createPostDto: CreateFeedPostDto,
+    userId: string,
+    guildId: string,
+  ) {
+    const post = await this.prisma.feedPost.create({
+      data: {
+        id: this.snowflake.generate(),
+        authorId: userId,
+        guildId,
+        ...createPostDto,
+      },
+      include: {
+        FeedLike: true,
+        FeedComment: true,
+        author: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return post;
+  }
+
+  async updatePost(dto: UpdateFeedPostDto, postId: string) {
+    return await this.prisma.feedPost.update({
+      where: { id: postId },
+      data: dto,
+    });
+  }
+
+  async deletePost(postId: string) {
+    return await this.prisma.feedPost.delete({
+      where: { id: postId },
+    });
+  }
+
+  async likePost(postId: string, userId: string) {
+    const res = await this.prisma.feedLike.create({
+      data: {
+        id: this.snowflake.generate(),
+        postId,
+        authorId: userId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+        post: {
+          select: {
+            guildId: true,
+          },
+        },
+      },
+    });
+
+    await this.prisma.feedPost.update({
+      where: { id: postId },
+      data: {
+        likeCount: { increment: 1 },
+      },
+    });
+
+    await this.ws.broadcastToCommunity(res.post.guildId, 'like_post', res);
+
+    return res;
+  }
+
+  async unlikePost(guildId: string, postId: string, userId: string) {
+    const res = await this.prisma.feedLike.delete({
+      where: {
+        postId_authorId: {
+          postId,
+          authorId: userId,
+        },
+      },
+    });
+
+    await this.prisma.feedPost.update({
+      where: { id: postId },
+      data: {
+        likeCount: { decrement: 1 },
+      },
+    });
+
+    await this.ws.broadcastToCommunity(guildId, 'unlike_post', res);
+
+    return res;
+  }
+
+  async getUserLiked(postId: string) {
+    const [likes, total] = await Promise.all([
+      this.prisma.feedLike.findMany({ where: { postId } }),
+      this.prisma.feedLike.count({ where: { postId } }),
+    ]);
+
+    return { likes, total };
+  }
+
+  async getCommentByPost(postId: string) {
+    const [comments, total] = await Promise.all([
+      this.prisma.feedComment.findMany({
+        where: { postId },
+        include: {
+          user: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.feedComment.count({
+        where: { postId },
+      }),
+    ]);
+
+    return { comments, total };
+  }
+
+  async createComment(
+    guildId: string,
+    postId: string,
+    userId: string,
+    content: string,
+  ) {
+    const res = await this.prisma.feedComment.create({
+      data: {
+        id: this.snowflake.generate(),
+        authorId: userId,
+        postId,
+        content,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            avatar: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    this.ws.broadcastToCommunity(guildId, 'add_comment', res);
+
+    return res;
+  }
+
+  async deleteComment(commentId: string) {
+    return await this.prisma.feedComment.delete({
+      where: { id: commentId },
+    });
+  }
+
+  async updateComment(commentId: string, content: string) {
+    return await this.prisma.feedComment.update({
+      where: { id: commentId },
+      data: {
+        content: content,
+      },
+    });
   }
 }

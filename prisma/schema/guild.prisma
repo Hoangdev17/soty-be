@@ -119,6 +119,65 @@ model Guild {
   @@map("guilds")
   BoostPurchase BoostPurchase[]
   Payment Payment[]
+  FeedPost FeedPost[]
+}
+
+
+
+model FeedPost {
+  id String @id @map("_id")
+
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+ content String
+
+ media Json[]
+
+ createdAt DateTime @default(now())
+ updatedAt DateTime?
+
+  likeCount Int @default(0)
+  commentCount Int @default(0)
+
+ FeedLike FeedLike[]
+ FeedComment FeedComment[]
+ @@map("feed_post")
+ 
+}
+
+model FeedLike {
+  id String @id @map("_id")
+
+  postId String
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  authorId String
+  user User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([postId, authorId])
+  @@map("feed_like")
+}
+
+model FeedComment {
+  id String @id @map("_id")
+
+  postId String
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  authorId String
+  user User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content String
+
+  createdAt DateTime @default(now())
+
+  @@map("feed_comment")
 }
 
 model GuildMemberBanned {
