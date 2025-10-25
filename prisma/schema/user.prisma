@@ -149,6 +149,9 @@ model User {
   FeedPost FeedPost[]
   FeedLike FeedLike[]
   FeedComment FeedComment[]
+  Project Project[]
+  Task Task[]
+  TaskComment TaskComment[]
 }
 
 model FriendRequest {
