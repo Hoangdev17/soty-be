@@ -33,6 +33,11 @@ import {
 import type { AuthenticatedRequest } from '../../core/auth/dto/request-with-auth.dto';
 import { CreateFeedPostDto } from './dto/create-post.dto';
 import { UpdateFeedPostDto } from './dto/update-post.dto';
+import { ProjectManagement } from './modules/project_management/pm.service';
+import { CreateProjectDto } from './modules/project_management/dto/create-project.dto';
+import { UpdateProjectDto } from './modules/project_management/dto/update-project.dto';
+import { CreateTaskDto } from './modules/project_management/dto/create-task.dto';
+import { UpdateTaskDto } from './modules/project_management/dto/update-task.dto';
 
 @ApiTags('Community')
 @Controller('community')
@@ -40,8 +45,7 @@ export class CommunityController {
   constructor(
     private readonly communityService: CommunityService,
     private readonly membersService: MembersService,
-    private readonly permissionsService: PermissionsService,
-    private readonly channelsService: ChannelsService,
+    private readonly pmService: ProjectManagement,
   ) {}
 
   @Post()
@@ -371,5 +375,91 @@ export class CommunityController {
     @Body() content: string,
   ) {
     return await this.communityService.updateComment(commentId, content);
+  }
+
+  @Get('/:guildId/projects')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get project in community' })
+  async getProjectInCommunity(@Param('guildId') guildId: string) {
+    return await this.pmService.getProjectListInCommunity(guildId);
+  }
+
+  @Post('/:guildId/projects')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'create project in community' })
+  async createProjectInCommunity(
+    @Param('guildId') guildId: string,
+    @Body() dto: CreateProjectDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return await this.pmService.createProject(dto, guildId, req.user.id);
+  }
+
+  @Get('/:guildId/projects/:projecId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'get project by id' })
+  async getProjectById(@Param('projecId') projecId: string) {
+    return await this.pmService.getProjectById(projecId);
+  }
+
+  @Patch('/:guildId/projects/:projectId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'update project in community' })
+  async updateProhject(
+    @Body() dto: UpdateProjectDto,
+    @Param('projectId') projectId: string,
+  ) {
+    return await this.pmService.updateProject(dto, projectId);
+  }
+
+  @Delete('/:guildId/projects/:projectId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'delete project in community' })
+  async deleteProhject(@Param('projectId') projectId: string) {
+    return await this.pmService.deleteProject(projectId);
+  }
+
+  @Post('/:guildId/projects/:projectId/tasks')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'create task' })
+  async createTask(
+    @Param('projectId') projectId: string,
+    @Body() dto: CreateTaskDto,
+  ) {
+    return await this.pmService.createTask(projectId, dto);
+  }
+
+  @Patch('/:guildId/projects/:projectId/tasks/:taskId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'update task' })
+  async upadteTask(
+    @Param('projectId') projectId: string,
+    @Body() dto: UpdateTaskDto,
+    @Param('taskId') taskId: string,
+  ) {
+    return await this.pmService.updateTask(projectId, dto, taskId);
+  }
+
+  @Get('/:guildId/projects/:projectId/tasks/:taskId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'update task' })
+  async getTaskById(@Param('taskId') taskId: string) {
+    return await this.pmService.getTaskById(taskId);
+  }
+
+  @Delete('/:guildId/projects/:projectId/tasks/:taskId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'update task' })
+  async deleteTask(@Param('taskId') taskId: string) {
+    return await this.pmService.deleteTask(taskId);
   }
 }

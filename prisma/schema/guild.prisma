@@ -120,6 +120,7 @@ model Guild {
   BoostPurchase BoostPurchase[]
   Payment Payment[]
   FeedPost FeedPost[]
+  Project Project[]
 }
 
 
@@ -1325,7 +1326,7 @@ model GuildModuleSetting {
 }
 
 model ChannelLastRead {
-  id               String   @id @map("_id") @default(cuid())
+  id               String   @id @map("_id")
   channelId        String
   userId           String
   lastReadMessageId String?
@@ -1333,4 +1334,84 @@ model ChannelLastRead {
 
   @@unique([channelId, userId])
   @@map("channel_last_read")
+}
+
+model Project {
+  id           String     @id @map("_id")
+  name         String
+  description  String?
+  communityId  String
+  community    Guild       @relation(fields: [communityId], references: [id])
+
+  ownerId      String
+  owner        User        @relation(fields: [ownerId], references: [id])
+
+  tasks        Task[]  
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("project")
+}
+
+model Task {
+  id           String       @id @map("_id")
+  title        String
+  description  String?
+  type         TaskType     @default(TASK)
+  status       TaskStatus   @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  startDate    DateTime?
+  dueDate      DateTime?
+  markdown     String?
+  assigneeId   String?
+  assignee     User?        @relation(fields: [assigneeId], references: [id])
+  projectId    String
+  project      Project      @relation(fields: [projectId], references: [id])
+
+  parentId     String?
+  parent       Task?        @relation("Subtasks", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subtasks     Task[]       @relation("Subtasks")
+
+  comments     TaskComment[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("task")
+}
+
+model TaskComment {
+  id          String   @id @map("_id")
+  content     String
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id])
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("task_comment")
+}
+
+enum TaskType {
+  TASK
+  BUG
+  STORY
+}
+
+enum TaskStatus {
+  TODO
+  DOING
+  DONE
+  BLOCKED
+  TESTING
+  REWORK
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
 }

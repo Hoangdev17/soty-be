@@ -15,6 +15,7 @@ import { ChannelsService } from './modules/channels/channels.service';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { MessageService } from '../message/message.service';
 import { UsersService } from '../users/users.service';
+import { ProjectManagement } from './modules/project_management/pm.service';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { UsersService } from '../users/users.service';
     WebsocketGateway,
     MessageService,
     UsersService,
+    ProjectManagement,
   ],
   exports: [
     CommunityService,
