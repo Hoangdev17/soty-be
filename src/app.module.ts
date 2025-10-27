@@ -14,6 +14,7 @@ import { CollectiblesModule } from './packages/collectibles/collectibles.module'
 import { SepayModule } from './packages/sepay/sepay.module';
 import { NitroModule } from './packages/nitro/nitro.module';
 import { BoostModule } from './packages/boost/boost.module';
+import { StickerModule } from './packages/stickers/sticker.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { BoostModule } from './packages/boost/boost.module';
     SepayModule,
     NitroModule,
     BoostModule,
+    StickerModule
   ],
   controllers: [AppController],
   providers: [AppService],
