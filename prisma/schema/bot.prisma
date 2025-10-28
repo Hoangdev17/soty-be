@@ -1,0 +1,88 @@
+model BotSkill {
+  id          String   @id @map("_id")   
+  botId       String
+  name        String
+  description String?
+  model       String?       // e.g. gpt-4, toxic-filter-v1, deepl-v2
+  enabled     Boolean       @default(true)
+  config      Json?
+  createdAt   DateTime      @default(now())
+
+  bot       User         @relation(fields: [botId], references: [id])
+  commands  BotCommand[]
+
+  @@map("bot_skill")
+}
+
+model BotCommand {
+  id           String       @id @map("_id") 
+  botId        String
+  name         String
+  description  String?
+  triggerType  TriggerType @default(PREFIX)
+  pattern      String?
+  enabled      Boolean     @default(true)
+  skillId      String?
+  actionId     String?
+
+  bot     User       @relation(fields: [botId], references: [id])
+  skill   BotSkill?  @relation(fields: [skillId], references: [id])
+  action  BotAction? @relation(fields: [actionId], references: [id])
+  executions CommandExecution[]
+}
+
+enum TriggerType {
+  PREFIX
+  EXACT
+  PATTERN
+}
+
+model BotAction {
+  id            String  @id @map("_id") 
+  botId         String
+  name          String
+  handler       String  
+  paramsSchema  Json?
+  createdAt     DateTime @default(now())
+
+  bot     User       @relation(fields: [botId], references: [id])
+  commands BotCommand[]
+}
+
+model CommandExecution {
+  id           String   @id @map("_id")
+  messageId    String
+  commandId    String
+  executedById String
+  result       Json?
+  executedAt   DateTime @default(now())
+
+  // Relations
+  message      GuildMessage   @relation(fields: [messageId], references: [id])
+  command      BotCommand     @relation(fields: [commandId], references: [id])
+  executedBy   User           @relation("ExecutedBy", fields: [executedById], references: [id])
+  responses    BotResponse[]
+}
+
+model BotResponse {
+  id                  String        @id @map("_id")
+  botId               String
+  messageId           String
+  content             String
+  type                ResponseType  @default(TEXT)
+  createdAt           DateTime      @default(now())
+  commandExecutionId  String?      
+
+  // Relations
+  bot        User           @relation(fields: [botId], references: [id])
+  message    GuildMessage   @relation(fields: [messageId], references: [id])
+  commandExecution CommandExecution? @relation(fields: [commandExecutionId], references: [id])
+}
+
+
+enum ResponseType {
+  TEXT
+  EMBED
+  ACTION
+  ERROR
+}

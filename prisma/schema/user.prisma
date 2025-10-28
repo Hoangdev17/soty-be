@@ -104,6 +104,8 @@ model User {
   settings         Settings?                         // Cài đặt cá nhân (theme, locale, notify…)
   mfa              Mfa?                              // Cấu hình bảo mật 2FA (TOTP/WebAuthn)
 
+  isBot            Boolean @default(false)
+
   isVerify         Boolean @default(false)
   deleted          Boolean @default(false)           // Cờ soft-delete
   deletedAt        DateTime?                         // Thời điểm xóa (nếu có)
@@ -143,8 +145,7 @@ model User {
 
   BoostPurchase BoostPurchase[]
   
-  @@index([id, email])
-  @@map("user") 
+ 
  
   FeedPost FeedPost[]
   FeedLike FeedLike[]
@@ -152,6 +153,14 @@ model User {
   Project Project[]
   Task Task[]
   TaskComment TaskComment[]
+  BotResponse BotResponse[]
+  BotSkill BotSkill[]
+  BotCommand BotCommand[]
+  BotAction BotAction[]
+  CommandExecution CommandExecution[] @relation("ExecutedBy") 
+  
+  @@index([id, email])
+  @@map("user") 
 }
 
 model FriendRequest {
