@@ -9,6 +9,7 @@ import {
 import { TriggerType, ResponseType } from '@prisma/client';
 import { WebsocketGateway } from '../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../websocket/websocket-events.types';
+import { MessageService } from '../../message/message.service';
 
 export interface MessageContext {
   messageId: string;
@@ -31,6 +32,8 @@ export class BotMessageProcessor {
     private actionHandler: BotActionHandler,
     @Inject(forwardRef(() => WebsocketGateway))
     private websocketGateway: WebsocketGateway,
+    @Inject(forwardRef(() => MessageService))
+    private messageService: MessageService,
   ) {}
 
   /**
@@ -271,35 +274,18 @@ export class BotMessageProcessor {
     type: ResponseType = ResponseType.TEXT,
     commandExecutionId?: string,
   ): Promise<void> {
-    // Tạo message từ bot
-    const message = await this.prisma.guildMessage.create({
-      data: {
-        id: this.snowflake.generate(),
-        channelId,
-        authorId: botId,
+    // Gửi message qua MessageService (sẽ tự động emit WebSocket)
+    const message = await this.messageService.sendMessage(
+      {
         content,
-        type: 0, // DEFAULT type
+        channelId,
+        type: type === ResponseType.ERROR ? 'system' : 'text',
+        mentionAuthor: false,
       },
-      include: {
-        author: {
-          select: {
-            id: true,
-            username: true,
-            avatar: true,
-            avatarEffectId: true,
-          },
-        },
-        channel: {
-          select: {
-            id: true,
-            name: true,
-            guildId: true,
-          },
-        },
-      },
-    });
+      botId,
+    );
 
-    // Tạo bot response record
+    // Tạo bot response record để track
     await this.prisma.botResponse.create({
       data: {
         id: this.snowflake.generate(),
@@ -311,49 +297,9 @@ export class BotMessageProcessor {
       },
     });
 
-    // Lấy thông tin guild nếu có
-    let guildName = '';
-    if (message.channel.guildId) {
-      const guild = await this.prisma.guild.findUnique({
-        where: { id: message.channel.guildId },
-        select: { name: true },
-      });
-      guildName = guild?.name ?? '';
-    }
-
-    // Emit message qua WebSocket để client nhận real-time
-    const messagePayload = {
-      id: message.id,
-      content: message.content,
-      createdAt: message.createdAt,
-      status: 'UNREAD',
-      type: type === ResponseType.ERROR ? 'error' : 'text',
-      room: `channel_${channelId}`,
-      author: {
-        id: message.author.id,
-        username: message.author.username,
-        avatar: message.author.avatar || '',
-        avatarEffectId: message.author.avatarEffectId || null,
-        isBot: true,
-      },
-      channelId: message.channel.id,
-      channelName: message.channel.name,
-      guildId: message.channel.guildId || '',
-      guildName,
-    };
-
     this.logger.log(
-      `Emitting bot response to room: channel_${channelId}, event: ${WEBSOCKET_EVENTS.MESSAGE}`,
+      `Bot response created and emitted via MessageService in channel: ${channelId}`,
     );
-    this.logger.log(`Bot response content: "${content}"`);
-
-    this.websocketGateway.emitToRoom(
-      `channel_${channelId}`,
-      WEBSOCKET_EVENTS.MESSAGE,
-      messagePayload,
-    );
-
-    this.logger.log(`Bot response created in channel: ${channelId}`);
   }
 
   /**

@@ -67,6 +67,49 @@ export class CacheService {
   }
 
   /**
+   * Delete all keys matching a pattern using SCAN
+   * Pattern example: "messages:channel:123:*"
+   */
+  async deleteByPattern(pattern: string): Promise<number> {
+    if (!this.client) {
+      console.warn(
+        '[CacheService] Redis not available, skipping pattern delete:',
+        pattern,
+      );
+      return 0;
+    }
+
+    try {
+      let cursor = '0';
+      let deletedCount = 0;
+      const batchSize = 100;
+
+      do {
+        // SCAN returns [cursor, keys[]]
+        const result = await this.client.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          batchSize,
+        );
+        cursor = result[0];
+        const keys = result[1];
+
+        if (keys.length > 0) {
+          const deleted = await this.client.del(...keys);
+          deletedCount += deleted;
+        }
+      } while (cursor !== '0');
+
+      return deletedCount;
+    } catch (error) {
+      console.warn('[CacheService] Error deleting by pattern:', pattern, error);
+      return 0;
+    }
+  }
+
+  /**
    * Cache common user keys for faster lookup.
    * Sets keys: user:login:<id>, user:id:<id>, user:email:<email>, user:username:<username>
    */
