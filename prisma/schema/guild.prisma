@@ -677,6 +677,8 @@ model GuildMessage {
   @@index([channelId, createdAt])
   @@index([id, channelId])
   @@map("guild_messages")
+  BotResponse BotResponse[]
+  CommandExecution CommandExecution[]
 }
 
 model PinnedMessage {

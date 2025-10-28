@@ -507,8 +507,6 @@ export class WebsocketGateway
         };
       }
 
-      console.log('Emitting message data:', messageData);
-
       this.emitToRoom(data.room, WEBSOCKET_EVENTS.MESSAGE, messageData, client);
       // Extract communityId from channelId to emit to community
       const channel = await this.prismaService.guildChannel.findUnique({

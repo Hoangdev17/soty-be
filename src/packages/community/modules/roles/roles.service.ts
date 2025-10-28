@@ -43,15 +43,20 @@ export class RolesService {
     // Clear related cache
     await this.cacheService.del(`roles:guild:${guildId}`);
 
-    return role;
+    const roleFinal = convertBigIntToString(role);
+    return roleFinal;
   }
 
   async updateRole(roleId: string, updateRoleDto: UpdateRoleDto) {
     const updates: any = {};
 
     if (updateRoleDto.name) updates.name = updateRoleDto.name;
-    if (updateRoleDto.permissions)
-      updates.permissions = updateRoleDto.permissions;
+    if (updateRoleDto.permissions) {
+      // Convert string array to BigInt before updating
+      updates.permissions = PermissionUtils.stringArrayToBigInt(
+        updateRoleDto.permissions,
+      );
+    }
     if (updateRoleDto.color !== undefined) updates.color = updateRoleDto.color;
     if (updateRoleDto.hoist !== undefined) updates.hoist = updateRoleDto.hoist;
     if (updateRoleDto.mentionable !== undefined)
@@ -66,7 +71,8 @@ export class RolesService {
     await this.cacheService.del(`role:${roleId}`);
     await this.cacheService.del(`roles:guild:${role.guildId}`);
 
-    return role;
+    const roleFinal = convertBigIntToString(role);
+    return roleFinal;
   }
 
   async deleteRole(roleId: string) {
@@ -95,7 +101,8 @@ export class RolesService {
       await this.cacheService.del(`roles:guild:${role.guildId}`);
     }
 
-    return deletedRole;
+    const deletedRoleFinal = convertBigIntToString(deletedRole);
+    return deletedRoleFinal;
   }
 
   async getGuildRoles(guildId: string) {
@@ -251,7 +258,8 @@ export class RolesService {
       await this.cacheService.set(cacheKey, role, 300);
     }
 
-    return role;
+    const roleFinal = convertBigIntToString(role);
+    return roleFinal;
   }
 
   async getMemberRoles(guildId: string, userId: string) {
@@ -279,7 +287,9 @@ export class RolesService {
 
     // Cache for 3 minutes
     await this.cacheService.set(cacheKey, roles, 180);
-    return roles;
+
+    const rolesFinal = convertBigIntToString(roles);
+    return rolesFinal;
   }
 
   async getMembersWithRole(
@@ -379,7 +389,8 @@ export class RolesService {
     // Clear related cache
     await this.cacheService.del(`roles:guild:${guildId}`);
 
-    return updatedRoles;
+    const updatedRolesFinal = convertBigIntToString(updatedRoles);
+    return updatedRolesFinal;
   }
 
   async clearRolesCache(guildId: string) {

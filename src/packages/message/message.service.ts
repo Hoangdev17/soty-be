@@ -1,10 +1,11 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Optional } from '@nestjs/common';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { CacheService } from 'src/core/cache/cache.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
+import { BotMessageProcessor } from '../bot/handlers/bot-message.processor';
 
 @Injectable()
 export class MessageService {
@@ -14,6 +15,9 @@ export class MessageService {
     private readonly cacheService: CacheService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
+    @Optional()
+    @Inject(forwardRef(() => BotMessageProcessor))
+    private readonly botMessageProcessor?: BotMessageProcessor,
   ) {}
 
   async sendMessage(sendMessageDto: SendMessageDto, authorId: string) {
@@ -138,6 +142,7 @@ export class MessageService {
     try {
       const recipients: string[] = (message.channel as any)?.recipients || [];
       if (recipients && recipients.length > 0) {
+        // DM/Group DM - emit to each recipient
         for (const userId of recipients) {
           // Skip emitting to sender's personal room as they are the sender
           if (userId === authorId) {
@@ -159,10 +164,33 @@ export class MessageService {
             recipientPayload,
           );
         }
+      } else if (message.channel.guildId) {
+        // Guild message - emit to channel room
+        this.websocketGateway.emitToRoom(
+          `channel_${channelId}`,
+          WEBSOCKET_EVENTS.MESSAGE,
+          response,
+        );
       }
     } catch (e) {
       // don't block on websocket errors
       // console.warn('Failed to emit direct message notifications', e);
+    }
+
+    // Process bot commands if message is in a guild
+    if (message.channel.guildId && this.botMessageProcessor) {
+      try {
+        await this.botMessageProcessor.processMessage({
+          messageId: message.id,
+          channelId: message.channel.id,
+          guildId: message.channel.guildId,
+          authorId: message.author.id,
+          content: message.content,
+        });
+      } catch (error) {
+        // Don't block on bot processing errors
+        console.warn('Failed to process bot commands:', error);
+      }
     }
 
     return response;
@@ -514,7 +542,7 @@ export class MessageService {
     // Clear messages cache
     await this.clearChannelMessagesCache(channelId);
 
-    return {
+    const replyResponse = {
       id: reply.id,
       content: reply.content,
       createdAt: reply.createdAt,
@@ -533,6 +561,24 @@ export class MessageService {
         author: originalMessage.author,
       },
     };
+
+    // Process bot commands if message is in a guild
+    if (originalMessage.channel?.guildId && this.botMessageProcessor) {
+      try {
+        await this.botMessageProcessor.processMessage({
+          messageId: reply.id,
+          channelId: channelId,
+          guildId: originalMessage.channel.guildId,
+          authorId: authorId,
+          content: reply.content,
+        });
+      } catch (error) {
+        // Don't block on bot processing errors
+        console.warn('Failed to process bot commands:', error);
+      }
+    }
+
+    return replyResponse;
   }
 
   async getMessageWithReplies(messageId: string) {

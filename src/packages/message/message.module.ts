@@ -4,9 +4,10 @@ import { MessageService } from './message.service';
 import { PrismaService } from 'src/core/prisma/prisma.service';
 import { SnowflakeID } from 'src/utils/snowflake';
 import { WebsocketModule } from '../websocket/websocket.module';
+import { BotModule } from '../bot/bot.module';
 
 @Module({
-  imports: [forwardRef(() => WebsocketModule)],
+  imports: [forwardRef(() => WebsocketModule), forwardRef(() => BotModule)],
   controllers: [MessageController],
   providers: [MessageService, PrismaService, SnowflakeID],
   exports: [MessageService],
