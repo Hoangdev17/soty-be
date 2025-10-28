@@ -82,6 +82,18 @@ export class BotActionHandler {
 
     // Handler help
     this.handlers.set('helpHandler', this.helpHandler.bind(this));
+
+    // Handler random dog image
+    this.handlers.set('dogHandler', this.dogHandler.bind(this));
+
+    // Handler random fox image
+    this.handlers.set('foxHandler', this.foxHandler.bind(this));
+
+    // Handler random advice
+    this.handlers.set('adviceHandler', this.adviceHandler.bind(this));
+
+    // Handler random joke
+    this.handlers.set('jokeHandler', this.jokeHandler.bind(this));
   }
 
   /**
@@ -133,17 +145,13 @@ export class BotActionHandler {
   ): Promise<BotActionResult> {
     const { params, channelId, content } = context;
 
-    // Xác định channel và content để gửi
     let targetChannelId: string;
     let messageContent: string;
 
     if (params?.channelId && params?.content) {
-      // Có params đầy đủ → gửi đến channel cụ thể
       targetChannelId = params.channelId;
       messageContent = params.content;
     } else {
-      // Không có params → reply vào channel hiện tại
-      // Parse content từ message: "!send Hello world" → "Hello world"
       const parts = content.split(/\s+/);
       if (parts.length < 2) {
         return {
@@ -154,7 +162,7 @@ export class BotActionHandler {
       }
 
       targetChannelId = channelId;
-      messageContent = parts.slice(1).join(' '); // Lấy phần sau command
+      messageContent = parts.slice(1).join(' ');
     }
 
     try {
@@ -499,5 +507,188 @@ export class BotActionHandler {
       response: helpText,
       data: commands,
     };
+  }
+
+  /**
+   * Handler: Random Dog Image
+   */
+  private async dogHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      // Fetch random dog image from API
+      const response = await fetch('https://dog.ceo/api/breeds/image/random');
+      const data = await response.json();
+
+      if (data.status !== 'success' || !data.message) {
+        return {
+          success: false,
+          error: 'Không thể lấy ảnh chó từ API',
+        };
+      }
+
+      const dogImageUrl = data.message;
+
+      // Send image using MessageService
+      await this.messageService.sendMessage(
+        {
+          content: dogImageUrl,
+          channelId: context.channelId,
+          type: 'image',
+          mentionAuthor: false,
+        },
+        context.botId, // Bot is the author
+      );
+
+      // Return success without response (message already sent)
+      return {
+        success: true,
+        data: { imageUrl: dogImageUrl },
+      };
+    } catch (error) {
+      this.logger.error('Error fetching dog image:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy ảnh chó: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Random Fox Image
+   */
+  private async foxHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      this.logger.log(`Fetching random fox image for bot: ${context.botId}`);
+
+      // Fetch random fox image from randomfox.ca API
+      const response = await fetch('https://randomfox.ca/floof/');
+      const data = await response.json();
+
+      if (!data.image) {
+        return {
+          success: false,
+          error: 'Không thể lấy ảnh cáo từ API',
+        };
+      }
+
+      const foxImageUrl = data.image;
+
+      // Send image using MessageService
+      await this.messageService.sendMessage(
+        {
+          content: foxImageUrl,
+          channelId: context.channelId,
+          type: 'image',
+          mentionAuthor: false,
+        },
+        context.botId, // Bot is the author
+      );
+
+      this.logger.log(`Bot ${context.botId} sent fox image: ${foxImageUrl}`);
+
+      // Return success without response (message already sent)
+      return {
+        success: true,
+        data: { imageUrl: foxImageUrl },
+      };
+    } catch (error) {
+      this.logger.error('Error fetching fox image:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy ảnh cáo: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Random Advice
+   */
+  private async adviceHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      this.logger.log(`Fetching random advice for bot: ${context.botId}`);
+
+      // Fetch random advice from adviceslip API
+      const response = await fetch('https://api.adviceslip.com/advice');
+      const data = await response.json();
+
+      if (!data.slip || !data.slip.advice) {
+        return {
+          success: false,
+          error: 'Không thể lấy lời khuyên từ API',
+        };
+      }
+
+      const advice = data.slip.advice;
+      const adviceId = data.slip.id;
+
+      // Format response message
+      const message = `💡 **Lời khuyên #${adviceId}**\n\n${advice}`;
+
+      this.logger.log(`Bot ${context.botId} sending advice: ${advice}`);
+
+      // Return response text (processor will create message)
+      return {
+        success: true,
+        response: message,
+        data: { adviceId, advice },
+      };
+    } catch (error) {
+      this.logger.error('Error fetching advice:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy lời khuyên: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Random Joke
+   */
+  private async jokeHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      this.logger.log(`Fetching random joke for bot: ${context.botId}`);
+
+      // Fetch random joke from official joke API
+      const response = await fetch(
+        'https://official-joke-api.appspot.com/random_joke',
+      );
+      const data = await response.json();
+
+      if (!data.setup || !data.punchline) {
+        return {
+          success: false,
+          error: 'Không thể lấy joke từ API',
+        };
+      }
+
+      const { type, setup, punchline, id } = data;
+
+      // Format response message
+      const message = `😂 **Joke #${id}** (${type})\n\n**${setup}**\n\n||${punchline}||`;
+
+      this.logger.log(
+        `Bot ${context.botId} sending joke #${id}: ${setup} - ${punchline}`,
+      );
+
+      // Return response text (processor will create message)
+      return {
+        success: true,
+        response: message,
+        data: { id, type, setup, punchline },
+      };
+    } catch (error) {
+      this.logger.error('Error fetching joke:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy joke: ${error.message}`,
+      };
+    }
   }
 }

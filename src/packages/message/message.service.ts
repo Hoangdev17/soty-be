@@ -203,8 +203,8 @@ export class MessageService {
     const cacheKey = `messages:channel:${channelId}:limit:${limitNum}:offset:${offsetNum}`;
 
     // Try cache first
-    // const cached = await this.cacheService.get(cacheKey);
-    // if (cached) return cached;
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
 
     const messages = await this.prismaService.guildMessage.findMany({
       where: { channelId },
@@ -271,24 +271,16 @@ export class MessageService {
   }
 
   private async clearChannelMessagesCache(channelId: string) {
-    // Clear all cached messages for this channel
-    // Since Redis doesn't support pattern deletion natively, we'll use a simple approach
-    const keys = [
-      `messages:channel:${channelId}:recent`,
-      `messages:channel:${channelId}:count`,
-      `pinned:channel:${channelId}`,
+    // Use pattern matching to delete all message cache keys for this channel
+    const patterns = [
+      `messages:channel:${channelId}:*`, // All pagination combinations
+      `pinned:channel:${channelId}`, // Pinned messages
+      `message:*:replies`, // Message replies (more specific would be better but this catches related)
     ];
 
-    // Clear common pagination combinations
-    for (let limit = 10; limit <= 100; limit += 10) {
-      for (let offset = 0; offset <= 500; offset += 50) {
-        keys.push(
-          `messages:channel:${channelId}:limit:${limit}:offset:${offset}`,
-        );
-      }
-    }
-
-    await Promise.all(keys.map((key) => this.cacheService.del(key)));
+    await Promise.all(
+      patterns.map((pattern) => this.cacheService.deleteByPattern(pattern)),
+    );
   }
 
   async pinMessage(messageId: string, channelId: string, pinnedById: string) {
