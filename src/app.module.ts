@@ -15,6 +15,7 @@ import { SepayModule } from './packages/sepay/sepay.module';
 import { NitroModule } from './packages/nitro/nitro.module';
 import { BoostModule } from './packages/boost/boost.module';
 import { BotModule } from './packages/bot/bot.module';
+import { QueueModule } from './core/queue/queue.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { BotModule } from './packages/bot/bot.module';
     }),
     CoreCacheModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    QueueModule,
     UsersModule,
     CommunityModule,
     AuthModule,
