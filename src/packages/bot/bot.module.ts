@@ -7,6 +7,7 @@ import { SnowflakeID } from '../../utils/snowflake';
 import { BotActionHandler } from './handlers/bot-action.handler';
 import { BotMessageProcessor } from './handlers/bot-message.processor';
 import { BotMemoryHandler } from './handlers/bot-memory.handler';
+import { BotAIChatHandler } from './handlers/bot-ai-chat.handler';
 import { BotReminderScheduler } from './cron/bot-reminder-scheduler.service';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { MessageModule } from '../message/message.module';
@@ -25,6 +26,7 @@ import { MessageModule } from '../message/message.module';
     BotActionHandler,
     BotMessageProcessor,
     BotMemoryHandler,
+    BotAIChatHandler,
     BotReminderScheduler,
   ],
   exports: [BotService, BotMessageProcessor, BotMemoryHandler],

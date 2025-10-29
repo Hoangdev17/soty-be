@@ -16,6 +16,8 @@ async function bootstrap() {
       queueOptions: {
         durable: true,
       },
+      noAck: false, // Enable manual acknowledgment
+      prefetchCount: 1, // Process one message at a time
     },
   });
 
@@ -27,6 +29,8 @@ async function bootstrap() {
       queueOptions: {
         durable: true,
       },
+      noAck: false, // Enable manual acknowledgment
+      prefetchCount: 1, // Process one message at a time
     },
   });
 
