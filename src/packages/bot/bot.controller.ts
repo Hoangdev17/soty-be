@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { BotService } from './bot.service';
+import { BotReminderScheduler } from './cron/bot-reminder-scheduler.service';
 import { CreateBotDto } from './dto/create-bot.dto';
 import {
   ApiTags,
@@ -25,7 +26,10 @@ import type { AuthenticatedRequest } from '../../core/auth/dto/request-with-auth
 @ApiTags('Bot')
 @Controller('bots')
 export class BotController {
-  constructor(private readonly botService: BotService) {}
+  constructor(
+    private readonly botService: BotService,
+    private readonly reminderScheduler: BotReminderScheduler,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Lấy tát cả bot' })
@@ -114,5 +118,13 @@ export class BotController {
   async processMessage(@Body() dto: ProcessMessageDto) {
     await this.botService.handleMessage(dto);
     return { message: 'Message processed' };
+  }
+
+  @Post('reminders/check')
+  @ApiOperation({ summary: 'Manual trigger reminder check (for testing)' })
+  @ApiResponse({ status: 200, description: 'Reminder check triggered' })
+  async triggerReminderCheck() {
+    await this.reminderScheduler.triggerReminderCheck();
+    return { message: 'Reminder check triggered successfully' };
   }
 }

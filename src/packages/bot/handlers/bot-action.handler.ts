@@ -4,6 +4,7 @@ import { SnowflakeID } from '../../../utils/snowflake';
 import { MessageService } from '../../message/message.service';
 import { WebsocketGateway } from '../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../websocket/websocket-events.types';
+import { BotMemoryHandler } from './bot-memory.handler';
 
 export interface BotActionContext {
   botId: string;
@@ -41,6 +42,8 @@ export class BotActionHandler {
     private messageService: MessageService,
     @Inject(forwardRef(() => WebsocketGateway))
     private websocketGateway: WebsocketGateway,
+    @Inject(forwardRef(() => BotMemoryHandler))
+    private memoryHandler: BotMemoryHandler,
   ) {
     this.handlers = new Map();
     this.registerHandlers();
@@ -94,6 +97,19 @@ export class BotActionHandler {
 
     // Handler random joke
     this.handlers.set('jokeHandler', this.jokeHandler.bind(this));
+
+    // Handler dragon ball character
+    this.handlers.set('dragonBallHandler', this.dragonBallHandler.bind(this));
+
+    // Memory system handlers
+    this.handlers.set('remindMeHandler', this.remindMeHandler.bind(this));
+    this.handlers.set(
+      'listRemindersHandler',
+      this.listRemindersHandler.bind(this),
+    );
+    this.handlers.set('rememberHandler', this.rememberHandler.bind(this));
+    this.handlers.set('recallHandler', this.recallHandler.bind(this));
+    this.handlers.set('memoryLevelHandler', this.memoryLevelHandler.bind(this));
   }
 
   /**
@@ -688,6 +704,417 @@ export class BotActionHandler {
       return {
         success: false,
         error: `Lỗi khi lấy joke: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Dragon Ball - Lấy ảnh nhân vật Dragon Ball theo tên
+   * Usage: !dragonball <name>
+   * Example: !dragonball Goku
+   */
+  private async dragonBallHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      const { content } = context;
+
+      // Parse command: !dragonball <name>
+      const parts = content.split(/\s+/).slice(1);
+
+      if (parts.length === 0) {
+        return {
+          success: false,
+          error: 'Cú pháp: !dragonball <tên nhân vật>\nVí dụ: !dragonball Goku',
+        };
+      }
+
+      const characterName = parts.join(' ');
+      this.logger.log(`Searching Dragon Ball character: ${characterName}`);
+
+      // Fetch từ Dragon Ball API
+      const response = await fetch(
+        `https://dragonball-api.com/api/characters?name=${encodeURIComponent(characterName)}`,
+      );
+
+      this.logger.log(`Dragon Ball API status: ${response.status}`);
+
+      if (!response.ok) {
+        this.logger.error(`API error status: ${response.status}`);
+        return {
+          success: false,
+          error: 'Không thể kết nối tới Dragon Ball API',
+        };
+      }
+
+      const data = await response.json();
+
+      const characters = Array.isArray(data) ? data : [];
+
+      if (characters.length === 0) {
+        this.logger.warn(`No character found: ${characterName}`);
+        return {
+          success: false,
+          error: `Không tìm thấy nhân vật "${characterName}"`,
+        };
+      }
+
+      const character = characters[0];
+
+      // Chỉ gửi ảnh
+      const message = character.image;
+
+      this.logger.log(`Sending image for: ${character.name}`);
+
+      return {
+        success: true,
+        response: message,
+        data: character,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching Dragon Ball character:', error);
+      return {
+        success: false,
+        error: `Lỗi khi tìm nhân vật: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Remind Me - Tạo reminder
+   * Usage: !remind <thời gian> [repeat] <tin nhắn>
+   * Example: !remind 30m Check the oven
+   * Example: !remind 1h daily Take medication
+   * Example: !remind 10m every Stand up and stretch
+   */
+  private async remindMeHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { botId, userId, channelId, guildId, content, messageId } = context;
+
+    try {
+      // Parse command: !remind <time> [repeat] <message>
+      const parts = content.split(/\s+/).slice(1); // Remove command prefix
+
+      if (parts.length < 2) {
+        return {
+          success: false,
+          error:
+            'Cú pháp: !remind <thời gian> [repeat] <tin nhắn>\nVí dụ:\n- !remind 14:30 Kiểm tra lò nướng\n- !remind 09:00 daily Uống nước\n- !remind 12:00 every Nghỉ ngơi',
+        };
+      }
+
+      const timeStr = parts[0];
+
+      // Check if second part is a repeat keyword
+      const repeatKeywords = ['daily', 'weekly', 'monthly', 'every'];
+      let repeat: 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM' = 'ONCE';
+      let repeatInterval: number | undefined;
+      let messageStartIndex = 1;
+
+      if (
+        parts.length >= 3 &&
+        repeatKeywords.includes(parts[1].toLowerCase())
+      ) {
+        const repeatStr = parts[1].toLowerCase();
+        messageStartIndex = 2;
+
+        if (repeatStr === 'daily') {
+          repeat = 'DAILY';
+        } else if (repeatStr === 'weekly') {
+          repeat = 'WEEKLY';
+        } else if (repeatStr === 'monthly') {
+          repeat = 'MONTHLY';
+        } else if (repeatStr === 'every') {
+          repeat = 'CUSTOM';
+          // Use the same interval as the original time
+        }
+      }
+
+      const message = parts.slice(messageStartIndex).join(' ');
+
+      // Parse time string (HH:mm format - giờ Việt Nam UTC+7)
+      const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+      if (!timeMatch) {
+        return {
+          success: false,
+          error:
+            'Định dạng thời gian không hợp lệ. Sử dụng: HH:mm (ví dụ: 14:30, 09:00)',
+        };
+      }
+
+      const hours = parseInt(timeMatch[1]);
+      const minutes = parseInt(timeMatch[2]);
+
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        return {
+          success: false,
+          error: 'Giờ phải từ 00-23 và phút phải từ 00-59',
+        };
+      }
+
+      // Tạo thời gian nhắc nhở theo múi giờ Việt Nam (UTC+7)
+      // User nhập giờ VN, chuyển sang UTC để lưu DB
+      const now = new Date();
+
+      // Lấy ngày hiện tại theo giờ VN
+      const vietnamNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+
+      // Tạo thời gian theo input của user (giờ VN)
+      const vietnamTime = new Date(vietnamNow);
+      vietnamTime.setHours(hours, minutes, 0, 0);
+
+      // Nếu thời gian đã qua trong ngày (< not <=), chuyển sang ngày mai
+      if (vietnamTime < vietnamNow) {
+        vietnamTime.setDate(vietnamTime.getDate() + 1);
+      }
+
+      // Convert về UTC để lưu vào DB (trừ đi 7 giờ)
+      const remindAt = new Date(vietnamTime.getTime() - 7 * 60 * 60 * 1000);
+
+      // If repeat is CUSTOM (every), calculate interval in minutes
+      if (repeat === 'CUSTOM') {
+        // Interval là khoảng thời gian từ bây giờ đến thời điểm nhắc
+        const diffMs = remindAt.getTime() - now.getTime();
+        repeatInterval = Math.floor(diffMs / (60 * 1000));
+      }
+
+      // Create reminder
+      const result = await this.memoryHandler.createReminder(
+        botId,
+        userId,
+        channelId,
+        'Nhắc nhở',
+        message,
+        remindAt,
+        {
+          guildId,
+          repeat,
+          repeatInterval,
+        },
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error in remindMeHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi tạo nhắc nhở: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: List Reminders - Xem danh sách reminders
+   */
+  private async listRemindersHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { userId, guildId } = context;
+
+    try {
+      const result = await this.memoryHandler.getUserReminders(userId, {
+        activeOnly: true,
+        guildId,
+      });
+
+      if (!result.success) {
+        return result;
+      }
+
+      const reminders = result.data.reminders;
+
+      if (reminders.length === 0) {
+        return {
+          success: true,
+          response: '📝 Bạn chưa có nhắc nhở nào',
+        };
+      }
+
+      let message = '📝 **Danh sách nhắc nhở:**\n\n';
+      reminders.forEach((r, index) => {
+        const timeStr = new Date(r.remindAt).toLocaleString('vi-VN');
+        message += `${index + 1}. **${r.title}**\n   ${r.message}\n   ⏰ ${timeStr}\n\n`;
+      });
+
+      return {
+        success: true,
+        response: message,
+        data: result.data,
+      };
+    } catch (error) {
+      this.logger.error('Error in listRemindersHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy danh sách nhắc nhở: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Remember - Lưu thông tin vào memory
+   * Usage: !remember <key> <value>
+   * Example: !remember favorite_color blue
+   */
+  private async rememberHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { botId, userId, guildId, content } = context;
+
+    try {
+      const parts = content.split(/\s+/).slice(1);
+
+      if (parts.length < 2) {
+        return {
+          success: false,
+          error:
+            'Cú pháp: !remember <key> <value>\nVí dụ: !remember favorite_color blue',
+        };
+      }
+
+      const key = parts[0];
+      const value = parts.slice(1).join(' ');
+
+      await this.memoryHandler.setMemory(botId, userId, key, value, {
+        guildId,
+        category: 'user_preference',
+        importance: 5,
+      });
+
+      // Update memory level
+      await this.memoryHandler.updateMemoryLevel(botId, userId, guildId);
+
+      return {
+        success: true,
+        response: `✅ Đã ghi nhớ: **${key}** = "${value}"`,
+      };
+    } catch (error) {
+      this.logger.error('Error in rememberHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi ghi nhớ: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Recall - Lấy thông tin từ memory
+   * Usage: !recall <key>
+   * Example: !recall favorite_color
+   */
+  private async recallHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { botId, userId, guildId, content } = context;
+
+    try {
+      const parts = content.split(/\s+/).slice(1);
+
+      if (parts.length === 0) {
+        // Show all memories
+        const result = await this.memoryHandler.getUserMemories(botId, userId, {
+          guildId,
+        });
+
+        if (!result.success) {
+          return result;
+        }
+
+        const memories = result.data.memories;
+
+        if (memories.length === 0) {
+          return {
+            success: true,
+            response: '🧠 Chưa có thông tin ghi nhớ nào',
+          };
+        }
+
+        let message = '🧠 **Thông tin ghi nhớ:**\n\n';
+        memories.forEach((m) => {
+          message += `• **${m.key}**: ${m.value}\n`;
+          if (m.category) message += `  📁 ${m.category}\n`;
+        });
+
+        return {
+          success: true,
+          response: message,
+          data: result.data,
+        };
+      }
+
+      const key = parts[0];
+      const result = await this.memoryHandler.getMemory(
+        botId,
+        userId,
+        key,
+        guildId,
+      );
+
+      if (!result.success) {
+        return {
+          success: false,
+          response: `❌ Không tìm thấy thông tin về: **${key}**`,
+        };
+      }
+
+      const memory = result.data;
+      return {
+        success: true,
+        response: `🧠 **${memory.key}**: ${memory.value}`,
+        data: result.data,
+      };
+    } catch (error) {
+      this.logger.error('Error in recallHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy thông tin: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Memory Level - Xem level ghi nhớ
+   */
+  private async memoryLevelHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { botId, userId, guildId } = context;
+
+    try {
+      const result = await this.memoryHandler.getMemoryLevel(
+        botId,
+        userId,
+        guildId,
+      );
+
+      if (!result.success) {
+        return result;
+      }
+
+      const data = result.data;
+      const levelEmojis = ['📝', '📚', '🎓', '🧠', '💎'];
+      const emoji = levelEmojis[data.level - 1] || '📝';
+
+      let message = `${emoji} **Memory Level ${data.level}**\n\n`;
+      message += `💬 Tổng tin nhắn: ${data.totalMessages}\n`;
+
+      if (data.nextLevelAt > 0) {
+        message += `📈 Tiến độ: ${data.progress}%\n`;
+        message += `🎯 Level tiếp theo: ${data.nextLevelAt} tin nhắn\n`;
+      } else {
+        message += `🏆 Đã đạt level tối đa!\n`;
+      }
+
+      return {
+        success: true,
+        response: message,
+        data: result.data,
+      };
+    } catch (error) {
+      this.logger.error('Error in memoryLevelHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi lấy memory level: ${error.message}`,
       };
     }
   }

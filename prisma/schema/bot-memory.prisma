@@ -1,0 +1,125 @@
+// Bot Memory & Notification System
+
+model BotNotification {
+  id          String              @id @map("_id")
+  botId       String
+  userId      String
+  guildId     String?
+  channelId   String?
+  title       String
+  message     String
+  type        NotificationType    @default(INFO)
+  priority    NotificationPriority @default(NORMAL)
+  read        Boolean             @default(false)
+  readAt      DateTime?
+  createdAt   DateTime            @default(now())
+  expiresAt   DateTime?
+
+  // Relations
+  bot     User           @relation("BotNotifications", fields: [botId], references: [id])
+  user    User           @relation("UserNotifications", fields: [userId], references: [id])
+  guild   Guild?         @relation(fields: [guildId], references: [id])
+  channel GuildChannel?  @relation(fields: [channelId], references: [id])
+
+  @@index([userId, read])
+  @@index([botId, createdAt])
+  @@map("bot_notification")
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+  REMINDER
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model BotReminder {
+  id          String          @id @map("_id")
+  botId       String
+  userId      String
+  guildId     String?
+  channelId   String
+  title       String
+  message     String
+  remindAt    DateTime
+  repeat      ReminderRepeat? @default(ONCE)
+  repeatInterval Int?          // In minutes for custom repeat
+  isActive    Boolean         @default(true)
+  completed   Boolean         @default(false)
+  completedAt DateTime?
+  createdAt   DateTime        @default(now())
+
+  // Relations
+  bot     User           @relation("BotReminders", fields: [botId], references: [id])
+  user    User           @relation("UserReminders", fields: [userId], references: [id])
+  guild   Guild?         @relation(fields: [guildId], references: [id])
+  channel GuildChannel   @relation(fields: [channelId], references: [id])
+
+  @@index([botId, remindAt, isActive])
+  @@index([userId, isActive])
+  @@map("bot_reminder")
+}
+
+enum ReminderRepeat {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+model BotMemory {
+  id          String      @id @map("_id")
+  botId       String
+  userId      String
+  guildId     String?
+  key         String      // e.g., "favorite_color", "last_topic", "preference"
+  value       String
+  category    String?     // e.g., "preference", "fact", "conversation"
+  importance  Int         @default(1) // 1-10 scale
+  level       Int         @default(1) // Memory level based on message count
+  messageCount Int        @default(0) // Number of messages from user
+  lastAccessed DateTime   @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  expiresAt   DateTime?
+
+  // Relations
+  bot     User   @relation("BotMemories", fields: [botId], references: [id])
+  user    User   @relation("UserMemories", fields: [userId], references: [id])
+  guild   Guild? @relation(fields: [guildId], references: [id])
+
+  @@unique([botId, userId, guildId, key])
+  @@index([botId, userId])
+  @@index([botId, level])
+  @@map("bot_memory")
+}
+
+model BotMemoryLevel {
+  id              String   @id @map("_id")
+  botId           String
+  userId          String
+  guildId         String?
+  level           Int      @default(1)
+  totalMessages   Int      @default(0)
+  lastMessageAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  bot     User   @relation("BotMemoryLevels", fields: [botId], references: [id])
+  user    User   @relation("UserMemoryLevels", fields: [userId], references: [id])
+  guild   Guild? @relation(fields: [guildId], references: [id])
+
+  @@unique([botId, userId, guildId])
+  @@index([botId, level])
+  @@map("bot_memory_level")
+}

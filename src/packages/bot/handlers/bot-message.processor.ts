@@ -6,6 +6,7 @@ import {
   BotActionContext,
   BotActionResult,
 } from './bot-action.handler';
+import { BotMemoryHandler } from './bot-memory.handler';
 import { TriggerType, ResponseType } from '@prisma/client';
 import { WebsocketGateway } from '../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../websocket/websocket-events.types';
@@ -34,13 +35,15 @@ export class BotMessageProcessor {
     private websocketGateway: WebsocketGateway,
     @Inject(forwardRef(() => MessageService))
     private messageService: MessageService,
+    @Inject(forwardRef(() => BotMemoryHandler))
+    private memoryHandler: BotMemoryHandler,
   ) {}
 
   /**
    * Xử lý tin nhắn mới - kiểm tra và thực thi bot commands
    */
   async processMessage(messageContext: MessageContext): Promise<void> {
-    const { guildId, content, authorId } = messageContext;
+    const { guildId, content, authorId, channelId } = messageContext;
 
     if (!guildId) {
       // Không xử lý DM messages
@@ -73,6 +76,23 @@ export class BotMessageProcessor {
     for (const botMember of botMembers) {
       const bot = botMember.user;
       if (!bot) continue;
+
+      // Update memory level cho user này với bot
+      try {
+        await this.memoryHandler.updateMemoryLevel(
+          bot.id,
+          authorId,
+          guildId,
+          channelId,
+        );
+
+        this.logger.log(
+          `Updated memory level for user ${authorId} with bot ${bot.username}`,
+        );
+      } catch (error) {
+        // Don't block on memory level update errors
+        this.logger.warn('Failed to update memory level:', error);
+      }
 
       // Load commands cho bot này
       const commands = await this.prisma.botCommand.findMany({
