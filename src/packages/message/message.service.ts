@@ -6,6 +6,7 @@ import { SnowflakeID } from 'src/utils/snowflake';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
 import { BotMessageProcessor } from '../bot/handlers/bot-message.processor';
+import { QueueService } from 'src/core/queue/queue.service';
 
 @Injectable()
 export class MessageService {
@@ -15,6 +16,7 @@ export class MessageService {
     private readonly cacheService: CacheService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
+    private readonly queueService: QueueService,
     @Optional()
     @Inject(forwardRef(() => BotMessageProcessor))
     private readonly botMessageProcessor?: BotMessageProcessor,
@@ -177,10 +179,12 @@ export class MessageService {
       // console.warn('Failed to emit direct message notifications', e);
     }
 
-    // Process bot commands if message is in a guild
+    // Queue bot processing for async execution (non-blocking)
     if (message.channel.guildId && this.botMessageProcessor) {
       try {
-        await this.botMessageProcessor.processMessage({
+        // Đẩy vào queue để xử lý bất đồng bộ
+        await this.queueService.queueBotCommand({
+          command: 'process_message',
           messageId: message.id,
           channelId: message.channel.id,
           guildId: message.channel.guildId,
@@ -188,8 +192,8 @@ export class MessageService {
           content: message.content,
         });
       } catch (error) {
-        // Don't block on bot processing errors
-        console.warn('Failed to process bot commands:', error);
+        // Don't block on queue errors
+        console.warn('Failed to queue bot processing:', error);
       }
     }
 

@@ -17,11 +17,15 @@ import { JwtAuthGuard } from 'src/core/auth/guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from 'src/core/auth/dto/request-with-auth.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { PinMessageDto } from './dto/pin-message.dto';
+import { QueueService } from 'src/core/queue/queue.service';
 
 @ApiTags('messages')
 @Controller('messages')
 export class MessageController {
-  constructor(private readonly messageService: MessageService) {}
+  constructor(
+    private readonly messageService: MessageService,
+    private readonly queueService: QueueService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -31,7 +35,16 @@ export class MessageController {
     @Body() sendMessageDto: SendMessageDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return await this.messageService.sendMessage(sendMessageDto, req.user.id);
+    // Queue message for async processing (includes bot handling)
+    await this.queueService.queueMessage({
+      sendMessageDto,
+      authorId: req.user.id,
+    });
+
+    return {
+      status: 'queued',
+      message: 'Message queued for processing',
+    };
   }
 
   @Get(':channelId')
