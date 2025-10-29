@@ -157,7 +157,17 @@ model User {
   BotSkill BotSkill[]
   BotCommand BotCommand[]
   BotAction BotAction[]
-  CommandExecution CommandExecution[] @relation("ExecutedBy") 
+  CommandExecution CommandExecution[] @relation("ExecutedBy")
+  
+  // Bot Memory & Notification relations
+  botNotifications  BotNotification[] @relation("BotNotifications")
+  userNotifications BotNotification[] @relation("UserNotifications")
+  botReminders      BotReminder[]     @relation("BotReminders")
+  userReminders     BotReminder[]     @relation("UserReminders")
+  botMemories       BotMemory[]       @relation("BotMemories")
+  userMemories      BotMemory[]       @relation("UserMemories")
+  botMemoryLevels   BotMemoryLevel[]  @relation("BotMemoryLevels")
+  userMemoryLevels  BotMemoryLevel[]  @relation("UserMemoryLevels")
   
   @@index([id, email])
   @@map("user") 

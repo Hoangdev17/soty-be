@@ -208,7 +208,7 @@ export class MessageService {
 
     const messages = await this.prismaService.guildMessage.findMany({
       where: { channelId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' }, // Lấy tin nhắn mới nhất trước
       take: limitNum,
       skip: offsetNum,
       include: {
@@ -265,9 +265,12 @@ export class MessageService {
       return baseMessage;
     });
 
+    // Reverse để hiển thị cũ → mới (vì query đã lấy mới → cũ)
+    const orderedMessages = formattedMessages.reverse();
+
     // Cache for 1 minute
-    await this.cacheService.set(cacheKey, formattedMessages, 60);
-    return formattedMessages;
+    await this.cacheService.set(cacheKey, orderedMessages, 60);
+    return orderedMessages;
   }
 
   private async clearChannelMessagesCache(channelId: string) {

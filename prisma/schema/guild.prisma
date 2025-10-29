@@ -115,12 +115,16 @@ model Guild {
   LeaderboardSnapshot LeaderboardSnapshot[]
   GuildModuleSetting  GuildModuleSetting[]
 
-  @@index([ownerId, url])
-  @@map("guilds")
   BoostPurchase BoostPurchase[]
   Payment Payment[]
   FeedPost FeedPost[]
   Project Project[]
+  
+  // Bot Memory & Notification relations
+  botNotifications BotNotification[]
+  botReminders     BotReminder[]
+  botMemories      BotMemory[]
+  botMemoryLevels  BotMemoryLevel[]
 }
 
 
@@ -510,6 +514,9 @@ model GuildChannel {
   messageReferences GuildMessageReference[]
   messageMentions   GuildMessageMention[]
 
+  // Bot Memory & Notification relations
+  botNotifications BotNotification[]
+  botReminders     BotReminder[]
 
   // a manager notifications that belong to this channel (thread)
   // notifications           Notification[]
