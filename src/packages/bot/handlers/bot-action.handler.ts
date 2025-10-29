@@ -5,6 +5,7 @@ import { MessageService } from '../../message/message.service';
 import { WebsocketGateway } from '../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../websocket/websocket-events.types';
 import { BotMemoryHandler } from './bot-memory.handler';
+import { BotAIChatHandler } from './bot-ai-chat.handler';
 
 export interface BotActionContext {
   botId: string;
@@ -44,6 +45,7 @@ export class BotActionHandler {
     private websocketGateway: WebsocketGateway,
     @Inject(forwardRef(() => BotMemoryHandler))
     private memoryHandler: BotMemoryHandler,
+    private aiChat: BotAIChatHandler,
   ) {
     this.handlers = new Map();
     this.registerHandlers();
@@ -110,6 +112,10 @@ export class BotActionHandler {
     this.handlers.set('rememberHandler', this.rememberHandler.bind(this));
     this.handlers.set('recallHandler', this.recallHandler.bind(this));
     this.handlers.set('memoryLevelHandler', this.memoryLevelHandler.bind(this));
+
+    // AI Chat handlers
+    this.handlers.set('aiChatHandler', this.aiChatHandler.bind(this));
+    this.handlers.set('clearChatHandler', this.clearChatHandler.bind(this));
   }
 
   /**
@@ -1115,6 +1121,64 @@ export class BotActionHandler {
       return {
         success: false,
         error: `Lỗi khi lấy memory level: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler cho AI chat
+   * Usage: !chat <message> hoặc !ai <message>
+   */
+  private async aiChatHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { content, channelId, guildId, userId, params } = context;
+
+    try {
+      // Extract user message from params.args (đã được parse bởi processor)
+      const userMessage = params?.args?.join(' ') || '';
+
+      const response = await this.aiChat.handleAIChat(
+        userMessage,
+        channelId,
+        guildId || '',
+        userId,
+      );
+
+      return {
+        success: true,
+        response,
+      };
+    } catch (error) {
+      this.logger.error('Error in aiChatHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi chat với AI: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler để xóa context chat
+   * Usage: !chat clear hoặc !ai reset
+   */
+  private async clearChatHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    const { channelId } = context;
+
+    try {
+      const response = await this.aiChat.clearContext(channelId);
+
+      return {
+        success: true,
+        response,
+      };
+    } catch (error) {
+      this.logger.error('Error in clearChatHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi xóa context: ${error.message}`,
       };
     }
   }
