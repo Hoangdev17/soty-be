@@ -7,6 +7,7 @@ import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../websocket/websocket-events.types';
 import { BotMessageProcessor } from '../bot/handlers/bot-message.processor';
 import { QueueService } from 'src/core/queue/queue.service';
+import { MessageFilterService } from './message-filter.service';
 
 @Injectable()
 export class MessageService {
@@ -17,6 +18,7 @@ export class MessageService {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly queueService: QueueService,
+    private readonly messageFilterService: MessageFilterService,
     @Optional()
     @Inject(forwardRef(() => BotMessageProcessor))
     private readonly botMessageProcessor?: BotMessageProcessor,
@@ -191,6 +193,16 @@ export class MessageService {
           authorId: message.author.id,
           content: message.content,
         });
+
+        // Also queue message filtering for automatic moderation
+        await this.queueService.queueBotCommand({
+          command: 'filter_message',
+          messageId: message.id,
+          channelId: message.channel.id,
+          guildId: message.channel.guildId,
+          authorId: message.author.id,
+          content: message.content,
+        });
       } catch (error) {
         // Don't block on queue errors
         console.warn('Failed to queue bot processing:', error);
@@ -254,6 +266,7 @@ export class MessageService {
           avatarEffectId: message.author.avatarEffectId || null,
         },
         channelId: message.channelId,
+        deleted: message.deleted,
       };
 
       // Add reply information if this message has references
@@ -750,5 +763,82 @@ export class MessageService {
     const result = await this.setLastRead(channelId, userId, lastReadMessageId);
 
     return result;
+  }
+
+  /**
+   * Delete a message
+   */
+  async deleteMessage(
+    messageId: string,
+    userId: string,
+    reason: string = 'user_deleted',
+    filterType?: string,
+  ) {
+    try {
+      // Find the message first
+      const message = await this.prismaService.guildMessage.findUnique({
+        where: { id: messageId },
+        include: {
+          author: {
+            select: { id: true, username: true },
+          },
+          channel: {
+            select: { id: true, guildId: true },
+          },
+        },
+      });
+
+      if (!message) {
+        throw new Error('Message not found');
+      }
+
+      if (message.deleted) {
+        throw new Error('Message already deleted');
+      }
+
+      // Soft delete the message
+      const deletedMessage = await this.prismaService.guildMessage.update({
+        where: { id: messageId },
+        data: {
+          deleted: true,
+          deletedAt: new Date(),
+        },
+        include: {
+          author: {
+            select: { id: true, username: true, avatar: true },
+          },
+        },
+      });
+
+      // Clear cache for this channel's messages
+      await this.clearChannelMessagesCache(message.channelId);
+
+      // Emit delete event through WebSocket
+      this.websocketGateway.emitToRoom(
+        `channel_${message.channelId}`,
+        WEBSOCKET_EVENTS.MESSAGE_DELETED,
+        {
+          messageId,
+          channelId: message.channelId,
+          guildId: message.channel.guildId,
+          deletedBy: userId,
+          reason,
+          filterType, // spam, toxic, etc.
+        },
+      );
+
+      return {
+        success: true,
+        message: 'Message deleted successfully',
+        deletedMessage: {
+          id: deletedMessage.id,
+          content: deletedMessage.content,
+          authorId: deletedMessage.authorId,
+          deletedAt: deletedMessage.deletedAt,
+        },
+      };
+    } catch (error) {
+      throw new Error(`Failed to delete message: ${error.message}`);
+    }
   }
 }

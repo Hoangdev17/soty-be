@@ -8,6 +8,8 @@ import { BotActionHandler } from './handlers/bot-action.handler';
 import { BotMessageProcessor } from './handlers/bot-message.processor';
 import { BotMemoryHandler } from './handlers/bot-memory.handler';
 import { BotAIChatHandler } from './handlers/bot-ai-chat.handler';
+import { MessageFilterHandler } from './handlers/message-filter.handler';
+import { MessageFilterSkillHandler } from './handlers/message-filter-skill.handler';
 import { BotReminderScheduler } from './cron/bot-reminder-scheduler.service';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { MessageModule } from '../message/message.module';
@@ -27,8 +29,16 @@ import { MessageModule } from '../message/message.module';
     BotMessageProcessor,
     BotMemoryHandler,
     BotAIChatHandler,
+    MessageFilterHandler,
+    MessageFilterSkillHandler,
     BotReminderScheduler,
   ],
-  exports: [BotService, BotMessageProcessor, BotMemoryHandler],
+  exports: [
+    BotService,
+    BotMessageProcessor,
+    BotMemoryHandler,
+    MessageFilterHandler,
+    MessageFilterSkillHandler,
+  ],
 })
 export class BotModule {}

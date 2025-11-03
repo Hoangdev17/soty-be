@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { SnowflakeID } from '../../utils/snowflake';
 import { CommunityController } from './community.controller';
@@ -11,6 +11,7 @@ import { MembersModule } from './modules/members/members.module';
 import { ThreadsModule } from './modules/threads/threads.module';
 import { EventsModule } from './modules/events/events.module';
 import { UploadsModule } from '../uploads/uploads.module';
+import { MessageModule } from '../message/message.module';
 import { ChannelsService } from './modules/channels/channels.service';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { MessageService } from '../message/message.service';
@@ -26,6 +27,7 @@ import { ProjectManagement } from './modules/project_management/pm.service';
     MembersModule,
     ThreadsModule,
     EventsModule,
+    forwardRef(() => MessageModule), // Import MessageModule để có MessageFilterService
   ],
 
   controllers: [CommunityController],

@@ -6,6 +6,7 @@ import { WebsocketGateway } from '../../websocket/websocket.gateway';
 import { WEBSOCKET_EVENTS } from '../../websocket/websocket-events.types';
 import { BotMemoryHandler } from './bot-memory.handler';
 import { BotAIChatHandler } from './bot-ai-chat.handler';
+import { MessageFilterSkillHandler } from './message-filter-skill.handler';
 
 export interface BotActionContext {
   botId: string;
@@ -46,6 +47,7 @@ export class BotActionHandler {
     @Inject(forwardRef(() => BotMemoryHandler))
     private memoryHandler: BotMemoryHandler,
     private aiChat: BotAIChatHandler,
+    private messageFilterSkill: MessageFilterSkillHandler,
   ) {
     this.handlers = new Map();
     this.registerHandlers();
@@ -116,6 +118,14 @@ export class BotActionHandler {
     // AI Chat handlers
     this.handlers.set('aiChatHandler', this.aiChatHandler.bind(this));
     this.handlers.set('clearChatHandler', this.clearChatHandler.bind(this));
+
+    // Message Filter Skill handlers
+    this.handlers.set(
+      'messageFilterHandler',
+      this.messageFilterHandler.bind(this),
+    );
+    this.handlers.set('checkSpamHandler', this.checkSpamHandler.bind(this));
+    this.handlers.set('checkToxicHandler', this.checkToxicHandler.bind(this));
   }
 
   /**
@@ -1179,6 +1189,85 @@ export class BotActionHandler {
       return {
         success: false,
         error: `Lỗi khi xóa context: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Message Filter - Kiểm tra tin nhắn spam/toxic
+   * Usage: !filter <text> hoặc !check <text>
+   */
+  private async messageFilterHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      const result = await this.messageFilterSkill.processSkill(context);
+      return result;
+    } catch (error) {
+      this.logger.error('Error in messageFilterHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi kiểm tra tin nhắn: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Check Spam - Kiểm tra spam cụ thể
+   * Usage: !spam <text>
+   */
+  private async checkSpamHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      // Sử dụng config đặc biệt cho spam detection
+      const spamConfig = {
+        enabled: true,
+        spamThreshold: 0.5, // Lower threshold for spam detection
+        toxicThreshold: 1.0, // Ignore toxic for this check
+        showDetailedResults: true,
+      };
+
+      const result = await this.messageFilterSkill.processSkill(
+        context,
+        spamConfig,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error('Error in checkSpamHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi kiểm tra spam: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Check Toxic - Kiểm tra nội dung độc hại
+   * Usage: !toxic <text>
+   */
+  private async checkToxicHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      // Sử dụng config đặc biệt cho toxic detection
+      const toxicConfig = {
+        enabled: true,
+        spamThreshold: 1.0, // Ignore spam for this check
+        toxicThreshold: 0.5, // Lower threshold for toxic detection
+        showDetailedResults: true,
+      };
+
+      const result = await this.messageFilterSkill.processSkill(
+        context,
+        toxicConfig,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error('Error in checkToxicHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi kiểm tra nội dung độc hại: ${error.message}`,
       };
     }
   }
