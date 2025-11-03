@@ -71,12 +71,12 @@ export class QueueConsumer {
 
     try {
       this.logger.log(
-        `Processing bot command for message: ${payload.messageId}`,
+        `Processing bot command '${payload.command}' for message: ${payload.messageId}`,
       );
 
-      // Gọi BotMessageProcessor để xử lý
+      // Gọi BotMessageProcessor để xử lý với command type
       if (this.botMessageProcessor) {
-        await this.botMessageProcessor.processMessage({
+        await this.botMessageProcessor.processBotCommand(payload.command, {
           messageId: payload.messageId,
           channelId: payload.channelId,
           guildId: payload.guildId,
@@ -87,10 +87,13 @@ export class QueueConsumer {
 
       channel.ack(originalMsg);
       this.logger.log(
-        `Bot command processed successfully for: ${payload.messageId}`,
+        `Bot command '${payload.command}' processed successfully for: ${payload.messageId}`,
       );
     } catch (error) {
-      this.logger.error('Error processing bot command:', error);
+      this.logger.error(
+        `Error processing bot command '${payload.command}':`,
+        error,
+      );
       channel.nack(originalMsg, false, true);
     }
   }

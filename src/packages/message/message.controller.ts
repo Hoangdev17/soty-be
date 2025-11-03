@@ -161,4 +161,16 @@ export class MessageController {
     const userId = req.user.id;
     return this.messageService.markChannelAsRead(channelId, userId);
   }
+
+  @Delete(':messageId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Delete a message' })
+  async deleteMessage(
+    @Param('messageId') messageId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    const userId = req.user.id;
+    return this.messageService.deleteMessage(messageId, userId);
+  }
 }
