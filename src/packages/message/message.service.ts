@@ -91,7 +91,7 @@ export class MessageService {
           referenceBy: message.id,
           channelId,
           guildId: originalMessage.channel?.guildId,
-          type: 0, // DEFAULT reference type
+          type: 0,
         },
       });
     }

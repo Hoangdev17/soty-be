@@ -6,7 +6,7 @@ const SendMessageSchema = z.object({
   content: z.string().min(1),
   channelId: z.string().min(1),
   type: z
-    .enum(['text', 'image', 'file', 'system', 'reply'])
+    .enum(['text', 'image', 'file', 'system', 'reply', 'emoji'])
     .optional()
     .default('text'),
   replyToMessageId: z.string().optional(),
@@ -33,7 +33,7 @@ export class SendMessageDto extends createZodDto(SendMessageSchema) {
     required: false,
     default: 'text',
   })
-  type: 'text' | 'image' | 'file' | 'system' | 'reply';
+  type: 'text' | 'image' | 'file' | 'system' | 'reply' | 'emoji';
 
   @ApiProperty({
     example: false,

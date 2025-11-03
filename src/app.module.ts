@@ -16,6 +16,8 @@ import { NitroModule } from './packages/nitro/nitro.module';
 import { BoostModule } from './packages/boost/boost.module';
 import { BotModule } from './packages/bot/bot.module';
 import { QueueModule } from './core/queue/queue.module';
+import { GuildStickerModule } from './packages/guild-sticker/guild-sticker.module';
+import { GuildEmojiModule } from './packages/guild-emoji/guild-emoji.module';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { QueueModule } from './core/queue/queue.module';
     NitroModule,
     BoostModule,
     BotModule,
+    GuildStickerModule,
+    GuildEmojiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
