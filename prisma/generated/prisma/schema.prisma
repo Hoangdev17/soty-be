@@ -1,0 +1,2097 @@
+// Bot Memory & Notification System
+
+model BotNotification {
+  id        String               @id @map("_id")
+  botId     String
+  userId    String
+  guildId   String?
+  channelId String?
+  title     String
+  message   String
+  type      NotificationType     @default(INFO)
+  priority  NotificationPriority @default(NORMAL)
+  read      Boolean              @default(false)
+  readAt    DateTime?
+  createdAt DateTime             @default(now())
+  expiresAt DateTime?
+
+  // Relations
+  bot     User          @relation("BotNotifications", fields: [botId], references: [id])
+  user    User          @relation("UserNotifications", fields: [userId], references: [id])
+  guild   Guild?        @relation(fields: [guildId], references: [id])
+  channel GuildChannel? @relation(fields: [channelId], references: [id])
+
+  @@index([userId, read])
+  @@index([botId, createdAt])
+  @@map("bot_notification")
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  SUCCESS
+  ERROR
+  REMINDER
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model BotReminder {
+  id             String          @id @map("_id")
+  botId          String
+  userId         String
+  guildId        String?
+  channelId      String
+  title          String
+  message        String
+  remindAt       DateTime
+  repeat         ReminderRepeat? @default(ONCE)
+  repeatInterval Int? // In minutes for custom repeat
+  isActive       Boolean         @default(true)
+  completed      Boolean         @default(false)
+  completedAt    DateTime?
+  createdAt      DateTime        @default(now())
+
+  // Relations
+  bot     User         @relation("BotReminders", fields: [botId], references: [id])
+  user    User         @relation("UserReminders", fields: [userId], references: [id])
+  guild   Guild?       @relation(fields: [guildId], references: [id])
+  channel GuildChannel @relation(fields: [channelId], references: [id])
+
+  @@index([botId, remindAt, isActive])
+  @@index([userId, isActive])
+  @@map("bot_reminder")
+}
+
+enum ReminderRepeat {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+model BotMemory {
+  id           String    @id @map("_id")
+  botId        String
+  userId       String
+  guildId      String?
+  key          String // e.g., "favorite_color", "last_topic", "preference"
+  value        String
+  category     String? // e.g., "preference", "fact", "conversation"
+  importance   Int       @default(1) // 1-10 scale
+  level        Int       @default(1) // Memory level based on message count
+  messageCount Int       @default(0) // Number of messages from user
+  lastAccessed DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  expiresAt    DateTime?
+
+  // Relations
+  bot   User   @relation("BotMemories", fields: [botId], references: [id])
+  user  User   @relation("UserMemories", fields: [userId], references: [id])
+  guild Guild? @relation(fields: [guildId], references: [id])
+
+  @@unique([botId, userId, guildId, key])
+  @@index([botId, userId])
+  @@index([botId, level])
+  @@map("bot_memory")
+}
+
+model BotMemoryLevel {
+  id            String   @id @map("_id")
+  botId         String
+  userId        String
+  guildId       String?
+  level         Int      @default(1)
+  totalMessages Int      @default(0)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  bot   User   @relation("BotMemoryLevels", fields: [botId], references: [id])
+  user  User   @relation("UserMemoryLevels", fields: [userId], references: [id])
+  guild Guild? @relation(fields: [guildId], references: [id])
+
+  @@unique([botId, userId, guildId])
+  @@index([botId, level])
+  @@map("bot_memory_level")
+}
+
+model BotSkill {
+  id          String   @id @map("_id")
+  botId       String
+  name        String
+  description String?
+  model       String? // e.g. gpt-4, toxic-filter-v1, deepl-v2
+  enabled     Boolean  @default(true)
+  config      Json?
+  createdAt   DateTime @default(now())
+
+  bot      User         @relation(fields: [botId], references: [id])
+  commands BotCommand[]
+
+  @@map("bot_skill")
+}
+
+model BotCommand {
+  id          String      @id @map("_id")
+  botId       String
+  name        String
+  description String?
+  triggerType TriggerType @default(PREFIX)
+  pattern     String?
+  enabled     Boolean     @default(true)
+  skillId     String?
+  actionId    String?
+
+  bot        User               @relation(fields: [botId], references: [id])
+  skill      BotSkill?          @relation(fields: [skillId], references: [id])
+  action     BotAction?         @relation(fields: [actionId], references: [id])
+  executions CommandExecution[]
+}
+
+enum TriggerType {
+  PREFIX
+  EXACT
+  PATTERN
+}
+
+model BotAction {
+  id           String   @id @map("_id")
+  botId        String
+  name         String
+  handler      String
+  paramsSchema Json?
+  createdAt    DateTime @default(now())
+
+  bot      User         @relation(fields: [botId], references: [id])
+  commands BotCommand[]
+}
+
+model CommandExecution {
+  id           String   @id @map("_id")
+  messageId    String
+  commandId    String
+  executedById String
+  result       Json?
+  executedAt   DateTime @default(now())
+
+  // Relations
+  message    GuildMessage  @relation(fields: [messageId], references: [id])
+  command    BotCommand    @relation(fields: [commandId], references: [id])
+  executedBy User          @relation("ExecutedBy", fields: [executedById], references: [id])
+  responses  BotResponse[]
+}
+
+model BotResponse {
+  id                 String       @id @map("_id")
+  botId              String
+  messageId          String
+  content            String
+  type               ResponseType @default(TEXT)
+  createdAt          DateTime     @default(now())
+  commandExecutionId String?
+
+  // Relations
+  bot              User              @relation(fields: [botId], references: [id])
+  message          GuildMessage      @relation(fields: [messageId], references: [id])
+  commandExecution CommandExecution? @relation(fields: [commandExecutionId], references: [id])
+}
+
+enum ResponseType {
+  TEXT
+  EMBED
+  ACTION
+  ERROR
+}
+
+model DecoratorAsset {
+  id          String    @id @map("_id")
+  assetType   Int // 0: nameplate; 1: avatarDecoration; 2: profile_effects
+  name        String? // Có thể null nếu không có name (vd: nameplate)
+  description String?
+  price       Float     @default(0)
+  salePrice   Float     @default(0)
+  metadata    Json
+  expiresAt   DateTime?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  collections DecoratorCollection[]
+  User        User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String?
+  Payment     Payment[]             @relation("DecoratorAssetPayment")
+
+  @@index([name])
+  @@index([assetType, price])
+  @@map("decorator_asset")
+}
+
+model DecoratorCollection {
+  id     String @id @map("_id")
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assetId String?
+  asset   DecoratorAsset? @relation(fields: [assetId], references: [id])
+
+  isActive      Boolean   @default(false)
+  purchasePrice Float
+  acquiredAt    DateTime  @default(now())
+  expiresAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, assetId])
+  @@map("decorator_collection")
+}
+
+enum GUILD_VISIBILITY {
+  PUBLIC
+  PRIVATE
+}
+
+enum GUILD_PAYMENT_MODEL {
+  SUBSCRIPTION
+  ONE_TIME
+}
+
+model Guild {
+  // The guild's id
+  id String @id @map("_id")
+
+  // Whether the guild is available to access. If it is not available, it indicates a server outage
+  available Boolean @default(true)
+
+  avatar String?
+
+  // The hash of the guild banner
+  banner String?
+
+  // A manager of the bans belonging to this guild
+  // TODO: GuildBanManager
+  bans String[]
+
+  // A manager of the channels belonging to this guild
+  channels GuildChannel[]
+
+  // The time this guild was created at
+  createdAt DateTime @default(now())
+
+  // The time this guild was deleted at
+  deletedAt DateTime?
+
+  // The description of the guild, if any
+  description String?
+
+  // The hash of the guild discovery splash image
+  discoverySplash String?
+
+  // A manager of the emojis belonging to this guild
+  emojis GuildEmoji[]
+
+  // A manager of the invites of this guild
+  //  TODO: GuildInviteManager
+  invites String[]
+
+  // Whether the guild is "large" (has more than members, 50 by default)
+  large Boolean @default(false)
+
+  // The maximum number of members this guild can have
+  maximumMembers Int?
+
+  // The full amount of members in this guild
+  memberCount Int @default(0)
+
+  // The name of this guild
+  name String
+
+  // The owner of this guild
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  paymentModel GUILD_PAYMENT_MODEL?
+
+  // The preferred locale of the guild, defaults to vi-VN
+  preferredLocale String? @default("vi-VN")
+
+  // The price of the guild, if it is a paid guild
+  pricing Float @default(0)
+
+  // A manager of the roles belonging to this guild
+  // TODO: RoleManager
+  roles GuildRole[]
+
+  // A manager of the stickers belonging to this guild
+  // TODO: GuildStickerManager
+
+  // The hash of the guild's system channel
+  notificationChannelId String?
+  systemChannelId       String?
+
+  // The guild's vanity URL code
+  vanityUrlCode String?
+  vanityUrlUses Int     @default(0)
+
+  // A username/url of the guild
+  url String @unique
+
+  // The visible of the guild
+  premiumTier              Int @default(0)
+  premiumSubscriptionCount Int @default(0)
+
+  // Guild level based on boosts
+  level Int @default(0) // Level tính từ số boosts
+
+  visibility         GUILD_VISIBILITY        @default(PUBLIC)
+  members            GuildMember[]
+  messageReferences  GuildMessageReference[]
+  events             GuildEvent[]
+  GuildSticker       GuildSticker[]
+  stickers           GuildMessageSticker[]
+  GuildAnimatedImage GuildAnimatedImage[]
+  GuildMemberBanned  GuildMemberBanned[]
+
+  Wallet              Wallet[]
+  GuildJoinRequest    GuildJoinRequest[]
+  GuildModuleAccess   GuildModuleAccess[]
+  GuildXpLog          GuildXpLog[]
+  GuildLevelReward    GuildLevelReward[]
+  GuildMission        GuildMission[]
+  GuildBadge          GuildBadge[]
+  GuildShopItem       GuildShopItem[]
+  LeaderboardSnapshot LeaderboardSnapshot[]
+  GuildModuleSetting  GuildModuleSetting[]
+
+  BoostPurchase BoostPurchase[]
+  Payment       Payment[]
+  FeedPost      FeedPost[]
+  Project       Project[]
+
+  // Bot Memory & Notification relations
+  botNotifications BotNotification[]
+  botReminders     BotReminder[]
+  botMemories      BotMemory[]
+  botMemoryLevels  BotMemoryLevel[]
+}
+
+model FeedPost {
+  id String @id @map("_id")
+
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content String
+
+  media Json[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
+  likeCount    Int @default(0)
+  commentCount Int @default(0)
+
+  FeedLike    FeedLike[]
+  FeedComment FeedComment[]
+
+  @@map("feed_post")
+}
+
+model FeedLike {
+  id String @id @map("_id")
+
+  postId String
+  post   FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  authorId String
+  user     User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([postId, authorId])
+  @@map("feed_like")
+}
+
+model FeedComment {
+  id String @id @map("_id")
+
+  postId String
+  post   FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  authorId String
+  user     User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content String
+
+  createdAt DateTime @default(now())
+
+  @@map("feed_comment")
+}
+
+model GuildMemberBanned {
+  id String @id @map("_id")
+
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reason String?
+
+  createdAt        DateTime           @default(now())
+  GuildJoinRequest GuildJoinRequest[]
+
+  @@unique([userId, guildId])
+  @@map("guild_member_banned")
+}
+
+model GuildMember {
+  // The guild member's accent color
+  accentColor Int?
+
+  // The guild member's avatar hash
+  avatar String?
+
+  // Whether this member is bannable by the client user
+  bannable Boolean @default(true)
+
+  // The guild member's banner hash.
+  banner String?
+
+  // The guild member's banner color
+  bannerColor Int?
+
+  // The bio of this member in guild (no affect to user bio)
+  bio String?
+
+  // The flags of this member
+  flags String[]
+
+  // The guild that this member is part of
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // The member's id
+  id String @id @map("_id")
+
+  // The time this member joined the guild
+  joinedAt DateTime @default(now())
+
+  // Whether this member is kickable by the client user
+  kickable Boolean @default(true)
+
+  // Whether the client user is above this user in the hierarchy, according to role position and guild ownership. This is a prerequisite for many moderative actions.
+  manageable Boolean @default(true)
+
+  // Whether this member is moderatable by the client user
+  moderatable Boolean @default(true)
+
+  // nickname of the user in the guild
+  nickname String?
+
+  // Whether this member has yet to pass the guild's membership gate
+  pending Boolean @default(false)
+
+  // The overall set of permissions for this member, taking only roles and owner status into account
+  // TODO: Implement this
+  permissions BigInt @default(0)
+
+  // pronouns of the user in the guild
+  pronouns        String?
+  xp              Int               @default(0)
+  coins           Int               @default(0)
+  xepo            Int               @default(0)
+  currentLevel    Int               @default(0)
+  title           String?
+  lastActivityAt  DateTime?
+  dailyStreak     Int               @default(0)
+  lastXpClaimedAt DateTime?
+  referralCode    String?
+  settings        Json?
+  // A manager for the roles belonging to this member
+  roles           GuildMemberRole[]
+
+  // The user that this guild member instance represents
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  messages GuildMessage[]
+
+  GuildRole GuildRole[]
+
+  // TODO: Implement this temporary. Remove it when the feature is implemented store in the database
+  avatarDecorationId   String?
+  profileEffectId      String?
+  GuildXpLog           GuildXpLog[]
+  GuildMissionLog      GuildMissionLog[]
+  GuildMemberBadge     GuildMemberBadge[]
+  GuildMemberInventory GuildMemberInventory[]
+
+  @@unique([guildId, userId])
+  @@map("guild_members")
+}
+
+model GuildJoinRequest {
+  id        String   @id @map("_id")
+  guildId   String
+  userId    String
+  status    String // 'PENDING', 'APPROVED', 'REJECTED'
+  createdAt DateTime @default(now())
+
+  guild               Guild              @relation(fields: [guildId], references: [id])
+  user                User               @relation(fields: [userId], references: [id])
+  GuildMemberBanned   GuildMemberBanned? @relation(fields: [guildMemberBannedId], references: [id])
+  guildMemberBannedId String?
+
+  @@unique([guildId, userId])
+  @@map("guild_join_request")
+}
+
+/**
+ * Guild Role Model
+ */
+model GuildRole {
+  // The base 10 color of the role
+  color String? @default("0")
+
+  // The time the role was created at
+  createAt DateTime @default(now())
+
+  // Whether the role is editable by the client user
+  editable Boolean @default(true)
+
+  // The guild that this role belongs to
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // If true, users that are part of this role will appear in a separate category in the users list
+  hoist Boolean @default(false)
+
+  // The role's icon
+  icon String?
+
+  // The role id
+  id String @id @map("_id")
+
+  // Whether or not the role is managed by an external service
+  managed Boolean @default(false)
+
+  // The cached guild members that have this role
+  members GuildMemberRole[]
+
+  // Whether or not the role can be mentioned by anyone
+  mentionable Boolean @default(false)
+
+  // The name of the role
+  name String
+
+  // The permissions of the role 
+  permissions BigInt @default(0)
+
+  // The position of the role in the hierarchy
+  position Int? @default(0)
+
+  // The role's tags
+  tags String[]
+
+  // The unicode emoji for the role
+  unicodeEmoji String?
+
+  permissionOverwrites GuildPermissionOverwrite[]
+  guildMember          GuildMember?               @relation(fields: [guildMemberId], references: [id], onDelete: Cascade)
+  guildMemberId        String?
+  messageMentions      GuildMessageMention[]
+  subscriptionListing  GuildSubscriptionListing[]
+
+  @@index([guildId, name])
+  @@index([guildId])
+  @@map("guild_roles")
+}
+
+model GuildMemberRole {
+  id       String      @id @map("_id")
+  memberId String
+  member   GuildMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  roleId   String
+  role     GuildRole   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, roleId])
+  @@map("guild_member_roles")
+}
+
+enum PermissionOverwriteType {
+  ROLE // 0
+  MEMBER // 1
+}
+
+model GuildPermissionOverwrite {
+  // The permissions that are allowed for the user or role.
+  allow String[]
+
+  // The GuildChannel this overwrite is for
+  channelId String
+  channel   GuildChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  // The permissions that are denied for the user or role.
+  deny String[]
+
+  // The id of the overwrite
+  id String @id @map("_id")
+
+  // The target id of this overwrite
+  targetId String
+
+  // The GuildMember this overwrite is for
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The Role this overwrite is for
+  roleId String?
+  role   GuildRole? @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // The type of this overwrite
+  // PermissionOverwriteType
+  type Int @default(0)
+
+  @@unique([channelId, targetId, type])
+  @@index([userId, channelId])
+  @@index([roleId, channelId])
+  @@index([channelId])
+  @@map("guild_permission_overwrites")
+}
+
+/**
+ * Guild Channel Model
+ * Able use for: Category, Message, Voice, Text, Others
+ */
+enum ChannelType {
+  GUILD_TEXT // 0
+  DM // 1
+  GUILD_VOICE // 2
+  GROUP_DM // 3
+  GUILD_CATEGORY // 4
+  GUILD_NEWS // 5
+  GUILD_FORUM // 15
+  GUILD_PUBLIC_THREAD // 11
+  GUILD_PRIVATE_THREAD // 12
+  GUILD_STAGE_VOICE // 13
+  GUILD_STORE // 6
+}
+
+model GuildChannel {
+  // The channel's id
+  id String @id @map("_id")
+
+  // The last message id sent in the channel 
+  lastMessageId String?
+
+  // Whether the channel is manageable by the client user
+  manageable       Boolean @default(true)
+  // The ID of the original message that started this thread (null if not a thread or not started from a message)
+  starterMessageId String?
+  // The name of the guild channel
+  name             String
+
+  // Whether the channel is nsfw
+  nsfw Boolean @default(false)
+
+  // The category parent of this channel
+  parentId String?
+  parent   GuildChannel?  @relation("ParentToChild", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children GuildChannel[] @relation("ParentToChild")
+
+  // A manager of permission overwrites that belong to this channel
+  permissionOverwrites GuildPermissionOverwrite[]
+
+  // If the permissionOverwrites match the parent channel, null if no parent
+  permissionsLocked Boolean @default(false)
+
+  // The position of the channel
+  position Int?
+
+  // Amount of seconds a user has to wait before sending another message (0-21600)
+  rateLimitPerUser Int? @default(0)
+
+  // The topic of the channel
+  topic String?
+
+  // The type of the channel
+  // ChannelType
+  type ChannelType
+
+  // Whether the channel is viewable by the client user
+  viewAble Boolean @default(true)
+
+  /**
+   * Start DM Group
+   */
+  recipients String[] @default([])
+  maxMembers Int?
+  icon       String?
+
+  isPrivate Boolean @default(false)
+
+  /**
+   * End DM Group
+   */
+
+  // The time the channel was created at
+  createdAt   DateTime @default(now())
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  // The time the channel was deleted at
+  deletedAt DateTime?
+
+  // Whether the channel is deletable by the client user
+  deletable Boolean @default(true)
+
+  // Whether the channel is deleted
+  deleted Boolean @default(false)
+
+  // The guild the channel is in
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  messages          GuildMessage[]
+  messageReferences GuildMessageReference[]
+  messageMentions   GuildMessageMention[]
+
+  // Bot Memory & Notification relations
+  botNotifications BotNotification[]
+  botReminders     BotReminder[]
+
+  // a manager notifications that belong to this channel (thread)
+  // notifications           Notification[]
+  // botIntegrations         BotIntegration[]
+  // notificationPreferences NotificationPreference[]
+  GuildEvent GuildEvent[]
+
+  @@index([guildId, parentId])
+  @@map("guild_channels")
+}
+
+/**
+ * Messages Model
+ */
+enum GuildMessageType {
+  DEFAULT // 0
+  RECIPIENT_ADD // 1
+  RECIPIENT_REMOVE // 2
+  CALL // 3
+  CHANNEL_NAME_CHANGE // 4
+  CHANNEL_ICON_CHANGE // 5
+  CHANNEL_PINNED_MESSAGE // 6
+  USER_JOIN // 7
+  GUILD_BOOST // 8
+  GUILD_BOOST_TIER_1 // 9
+  GUILD_BOOST_TIER_2 // 10
+  GUILD_BOOST_TIER_3 // 11
+  CHANNEL_FOLLOW_ADD // 12
+  GUILD_DISCOVERY_DISQUALIFIED // 14
+  GUILD_DISCOVERY_REQUALIFIED // 15
+  GUILD_DISCOVERY_GRACE_PERIOD_INITIAL_WARNING // 16
+  GUILD_DISCOVERY_GRACE_PERIOD_FINAL_WARNING // 17
+  THREAD_CREATED // 18
+  REPLY // 19
+  CHAT_INPUT_COMMAND // 20
+  THREAD_STARTER_MESSAGE // 21
+  GUILD_INVITE_REMINDER // 22
+  CONTEXT_MENU_COMMAND // 23
+  AUTO_MODERATION_ACTION // 24
+  ROLE_SUBSCRIPTION_PURCHASE // 25
+  INTERACTION_PREMIUM_UPSELL // 26
+  STAGE_START // 27
+  STAGE_END // 28
+  STAGE_SPEAKER // 29
+  STAGE_TOPIC // 31
+  GUILD_APPLICATION_PREMIUM_SUBSCRIPTION // 32
+}
+
+enum GUILD_MESSAGE_STATUS {
+  UNREAD
+  READ
+  SEEN
+}
+
+model GuildMessage {
+  // A collection of attachments in the message - e.g. Pictures - mapped by their ids. This property requires the GatewayIntentBits.MessageContent privileged intent in a guild for messages that do not mention the client.
+  // TODO: Attachment
+  attachments String[]
+
+  // The author of the message
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // Whether the message is bulk deletable by the client user
+  bulkDeletable Boolean @default(true)
+
+  // The channel that the message was sent in
+  channelId String
+  channel   GuildChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  // The message contents with all mentions replaced by the equivalent text. If mentions cannot be resolved to a name, the relevant mention in the message content will not be converted.
+  cleanContent String?
+
+  // An array of action rows in the message
+  components String[]
+
+  // The content of the message. This property requires the GatewayIntentBits.MessageContent privileged intent in a guild for messages that do not mention the client.
+  content String @default("")
+
+  // The time the message was sent at
+  createdAt DateTime @default(now())
+
+  // The time the channel was deleted at
+  deletedAt DateTime?
+
+  // Whether the channel is deletable by the client user
+  deletable Boolean @default(true)
+
+  // Whether the channel is deleted
+  deleted Boolean @default(false)
+
+  // Whether the message is editable by the client user
+  editable Boolean @default(true)
+
+  // The time the message was last edited at (if applicable)
+  editedAt DateTime?
+
+  // An array of embeds in the message - e.g. YouTube Player. 
+  embeds Json[]
+
+  // Whether this message has a thread associated with it
+  hasThread Boolean @default(false)
+
+  // The message's id
+  id String @id @map("_id")
+
+  // Represents the author of the message as a guild member. Only available if the message comes from a guild where the author is still a member
+  memberId String?
+  member   GuildMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  // All valid mentions that the message contains
+  mentions GuildMessageMention[]
+
+  // A random number or string used for checking message delivery This is only received after the message was sent successfully, and lost if re-fetched
+  nonce String?
+
+  // Whether the message is pinnable by the client user
+  pinnable Boolean @default(true)
+
+  // Whether or not this message is pinned
+  pinned Boolean @default(false)
+
+  // A generally increasing integer (there may be gaps or duplicates) that represents the approximate position of the message in a thread.
+  position Float @default(0)
+
+  // A manager of the reactions belonging to this message
+  reactions GuildMessageReaction[]
+
+  // Message reference data (MessageId, ChannelId, GuildId)
+  references GuildMessageReference[] @relation("ReferencedMessages")
+  referredBy GuildMessageReference[] @relation("ReferringMessages")
+
+  // A collection of stickers in the message
+  // Whether or not this message was sent by system, not actually a user (e.g. pin notifications)
+  system Boolean @default(false)
+
+  // The thread started by this message
+  // TODO: Thread
+  thread String?
+
+  // The type of the message
+  // GuildMessageType
+  type Int @default(0)
+
+  // The id of the webhook that sent the message, if applicable
+  webhookId String?
+
+  // The read status of the message for the current user/device
+  // UNREAD = user hasn't opened the message yet
+  // READ = user opened the message (viewed content)
+  // SEEN = user has seen the message in a list/preview
+  status GUILD_MESSAGE_STATUS @default(UNREAD)
+
+  reactionUsers GuildMessageReactionUser[]
+
+  // The notification that this message is part of
+  // notifications Notification[]
+
+  // The bot that sent this message
+  botIds           String[]
+  // bots          Bot[]                 @relation("MessagesToBots", fields: [botIds], references: [id])
+  stickers         GuildMessageSticker[]
+  PinnedMessage    PinnedMessage[]
+  BotResponse      BotResponse[]
+  CommandExecution CommandExecution[]
+
+  @@index([channelId, createdAt])
+  @@index([id, channelId])
+  @@map("guild_messages")
+}
+
+model PinnedMessage {
+  id         String   @id @map("_id")
+  messageId  String // tin nhắn được pin
+  channelId  String
+  pinnedById String // ai pin
+  pinnedAt   DateTime @default(now())
+
+  message  GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  pinnedBy User         @relation(fields: [pinnedById], references: [id])
+
+  @@index([messageId])
+  @@map("guild_message_pinned")
+}
+
+model GuildMessageSticker {
+  id        String @id @map("_id")
+  messageId String
+  stickerId String
+
+  message        GuildMessage  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  sticker        Sticker?      @relation(fields: [stickerId], references: [id])
+  Guild          Guild?        @relation(fields: [guildId], references: [id])
+  guildId        String?
+  GuildSticker   GuildSticker? @relation(fields: [guildStickerId], references: [id])
+  guildStickerId String?
+
+  @@map("guild_message_sticker")
+}
+
+model Sticker {
+  id          String   @id @map("_id")
+  name        String // "Laugh"
+  description String?
+  asset       String?
+  formatType  Int      @map("format") // 1 = PNG, 2 = APNG, 3 = LOTTIE (animated)
+  type        Int // 1 = STANDARD, 2 = GUILD
+  tags        String?
+  packId      String?
+  sortValue   Int?
+  url         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messageStickers GuildMessageSticker[]
+}
+
+enum GUILD_MESSAGE_REFERENCE_TYPE {
+  DEFAULT // 0 - A standard reference used by replies
+  FORWARD // 1 - Reference used to point to a message at a point in time
+}
+
+model GuildMessageReference {
+  // The message reference's id
+  id String @id @map("_id")
+
+  // The message that the reference is to / replied to
+  reference  String
+  messageRef GuildMessage @relation("ReferencedMessages", fields: [reference], references: [id], onDelete: Cascade)
+
+  // The message that the reference is by
+  referenceBy String
+  messageBy   GuildMessage @relation("ReferringMessages", fields: [referenceBy], references: [id], onDelete: Cascade)
+
+  // The channel that the reference is to
+  channelId String
+  channel   GuildChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  // The guild that the reference is to
+  guildId String?
+  guild   Guild?  @relation(fields: [guildId], references: [id])
+
+  type Int @default(0)
+
+  @@index([reference, referenceBy])
+  @@map("guild_message_references")
+}
+
+enum GuildMessageMentionType {
+  USER // 0
+  ROLE // 1
+  CHANNEL // 2
+}
+
+model GuildMessageMention {
+  // The message mention's id
+  id String @id @map("_id")
+
+  channelId String?
+  channel   GuildChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  // The message that the mention is in
+  messageId String
+  message   GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  // The role that was mentioned
+  roleId String?
+  role   GuildRole? @relation(fields: [roleId], references: [id])
+
+  // The user that was mentioned
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  targetId String
+
+  type Int @default(0)
+
+  @@unique([messageId, targetId, type])
+  @@index([messageId])
+  @@map("guild_message_mentions")
+}
+
+model GuildEmoji {
+  // Whether or not the emoji is animated
+  animated Boolean @default(false)
+
+  // The user who created this emoji
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  // Whether this emoji is available
+  available Boolean @default(true)
+
+  // The time the emoji was created at, or null if unicode
+  createdAt DateTime @default(now())
+
+  // deletable by the client user
+  deletable Boolean @default(true)
+
+  // The guild that this emoji belongs to
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id])
+
+  // The guild emoji's id
+  id String @id @map("_id")
+
+  // Whether this emoji is managed by an external service
+  managed Boolean @default(false)
+
+  // The name of the emoji
+  name String
+
+  // Whether or not this emoji requires colons surrounding it
+  requiresColons Boolean @default(false)
+
+  // Returns a URL for the emoji.
+  url String
+
+  messagesReactions GuildMessageReaction[]
+
+  @@map("guild_emojis")
+}
+
+model GuildMessageReaction {
+  // The number of people that have given the same reaction
+  count Int @default(0)
+
+  // The emoji name that was used to react
+  name String
+
+  // The message reaction's id
+  id String @id @map("_id")
+
+  // The guild emoji that the reaction was on
+  emojiId String?
+  emoji   GuildEmoji? @relation(fields: [emojiId], references: [id])
+
+  // The message that the reaction was on
+  messageId String
+  message   GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  // A manager of the users that have given this reaction
+  users GuildMessageReactionUser[]
+
+  @@unique([messageId, name])
+  @@map("guild_message_reactions")
+}
+
+model GuildMessageReactionUser {
+  // The location user that reacted to the message
+  location String?
+
+  // The message reaction user's id
+  id String @id @map("_id")
+
+  // The name of the reaction
+  name String
+
+  // The message that the reaction was on
+  messageId String
+  message   GuildMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  // The message reaction that the user reacted to
+  reactionId String
+  reaction   GuildMessageReaction @relation(fields: [reactionId], references: [id])
+
+  // The user that reacted to the message
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, name])
+  @@index([messageId, reactionId])
+  @@map("guild_message_reaction_users")
+}
+
+model GuildAnimatedImage {
+  // The unique ID of the animated image (Snowflake-style, mapped to MongoDB _id)
+  id String @id @map("_id")
+
+  // The name of the animated image (e.g., "laugh", "boom")
+  name String
+
+  // URL pointing to the animated image file (GIF, APNG, etc.)
+  url String
+
+  // Whether this animated image is available to all guilds or restricted
+  isPublic Boolean @default(false)
+
+  // The ID of the user who created this animated image
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  // The ID of the guild this animated image belongs to
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // Whether the animated image can be deleted by the current user
+  deletable Boolean @default(true)
+
+  // Whether the animated image is currently usable (can be disabled if reported or removed)
+  available Boolean @default(true)
+
+  // Whether this animated image is managed by an external service or system
+  managed Boolean @default(false)
+
+  // The time when this animated image was created
+  createdAt DateTime @default(now())
+
+  // The time when this animated image was last updated
+  updatedAt DateTime @updatedAt
+
+  @@map("guild_animated_images")
+}
+
+model GuildEvent {
+  /// Event entity for scheduling and managing time-based activities in the community
+  /// Unique identifier for the event (MongoDB ObjectId)
+  id        String  @id @map("_id")
+  /// Soft delete flag
+  deleted   Boolean @default(false)
+  /// Whether the event can be deleted by users
+  deletable Boolean @default(true)
+
+  /// Title/name of the event
+  title       String
+  /// Optional detailed description of the event (front-end uses `description`)
+  description String?
+  imgUrl      String?
+
+  /// Start and end (front-end uses `startAt`/`endAt`)
+  startAt   DateTime
+  startTime String?
+  endAt     DateTime?
+
+  /// Indicates if the event lasts the entire day
+  allDay Boolean? @default(false)
+
+  /// Time zone in which the event occurs
+  timeZone String?
+
+  /// Platform used for the event (Zoom, Teams, etc.)
+  platform   String?
+  /// URL for joining virtual meetings
+  meetingUrl String?
+
+  /// Number of users attending the event
+  attendees Int      @default(0)
+  /// Indicates if reminders should be sent for this event
+  remind    Boolean? @default(false)
+
+  /// Frequency string from frontend (e.g. none, once, daily, weekly, monthly)
+  frequency String?
+  /// If the event is associated with a channel, store channelId
+  channelId String?
+  channel   GuildChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  /// ID of the guild/community this event belongs to
+  guildId String
+  /// Relation to the parent guild
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  /// ID of the user who created the event
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Timestamp when the event was created
+  createdAt DateTime  @default(now())
+  /// Timestamp when the event was last updated
+  updatedAt DateTime  @updatedAt
+  /// Timestamp when the event was deleted (for soft delete)
+  deletedAt DateTime?
+
+  // The metadata of the event
+  metadata Json?
+
+  @@index([startAt, endAt, guildId])
+  @@index([guildId])
+  @@map("guild_events")
+}
+
+model GuildSubscriptionListing {
+  id            String     @id @map("_id")
+  name          String
+  description   String?
+  type          Int        @default(0) //Guild Product Category 0 = ORTHER
+  roleId        String?
+  role          GuildRole? @relation(fields: [roleId], references: [id])
+  published     Boolean    @default(false)
+  deleted       Boolean    @default(false)
+  deletable     Boolean    @default(true)
+  archived      Boolean    @default(false)
+  applicationId String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  iconUrl       String?
+
+  metadata Json?
+
+  roleBenefits GuildRoleBenefit?
+
+  @@map("guild_subscription_listings")
+}
+
+model GuildRoleBenefit {
+  id        String   @id @map("_id")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  subscriptionListingId String                   @unique
+  subscriptionListing   GuildSubscriptionListing @relation(fields: [subscriptionListingId], references: [id])
+
+  benefits GuildBenefit[]
+
+  @@map("guild_role_benefits")
+}
+
+model GuildBenefit {
+  id          String   @id @map("_id")
+  emojiId     String?
+  emojiName   String?
+  name        String?
+  description String?
+  refType     Int // 1 = Channel, 2 = Role, etc.
+  refId       String? // ID of referenced entity
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  roleBenefitId String
+  roleBenefit   GuildRoleBenefit @relation(fields: [roleBenefitId], references: [id])
+
+  @@map("guild_benefits")
+}
+
+model GuildStickerPack {
+  // The sticker pack's id
+  id String @id @map("_id")
+
+  coverStickerId String?
+  coverSticker   GuildSticker? @relation("CoverSticker", fields: [coverStickerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  // the sticker pack's banner image url
+  banner String?
+
+  // The name of the sticker pack
+  name String
+
+  // The description of the sticker pack
+  description String?
+
+  // The time the sticker pack was created at
+  createdAt DateTime @default(now())
+
+  stickers GuildSticker[] @relation("StickerPackStickers")
+
+  @@map("guild_sticker_packs")
+}
+
+model GuildSticker {
+  // The sticker's id
+  id String @id @map("_id")
+
+  // The guild that this sticker belongs to
+  guildId String
+  guild   Guild  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // The name of the sticker
+  name String
+
+  // The description of the sticker
+  description String?
+
+  // Autocomplete/suggestions for the sticker
+  tags String?
+
+  // The type of the sticker
+  type Int @default(0) // Guild = 2, Standard = 1, Other = 0
+
+  // The format type of the sticker
+  format Int @default(0) // OTHER = 0, PNG = 1, APNG = 2, Lottie = 3, GIF = 4
+
+  // The time the sticker was created at, or null if unicode
+  createdAt DateTime @default(now())
+
+  // Whether this sticker is available
+  available Boolean @default(true)
+
+  // Whether this sticker is deletable by the client user
+  deletable Boolean @default(true)
+
+  // Returns a URL for the sticker.
+  url String?
+
+  // Whether this sticker is partial
+  partial Boolean @default(false)
+
+  // The standard sticker's sort order within its pack
+  sortValue Int?
+
+  // The user who created this sticker
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  messages GuildMessageSticker[]
+
+  // The sticker pack that this sticker belongs to
+  packId String?
+  pack   GuildStickerPack? @relation("StickerPackStickers", fields: [packId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  packs GuildStickerPack[] @relation("CoverSticker")
+
+  @@map("guild_stickers")
+}
+
+model LeaderboardSnapshot {
+  id        String   @id @map("_id")
+  guildId   String
+  type      String // "weekly", "monthly"
+  date      DateTime
+  data      Json // [{userId, xp, level, rank}]
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("leaderboard_snapshots")
+}
+
+model ModuleDefinition {
+  id                       String                     @id @map("_id")
+  module                   String                     @unique
+  displayName              String
+  description              String?
+  iconUrl                  String?
+  enabled                  Boolean                    @default(true)
+  createdAt                DateTime                   @default(now())
+  accesses                 GuildModuleAccess[]
+  GuildModuleSetting       GuildModuleSetting[]
+  SubscriptionModuleAccess SubscriptionModuleAccess[]
+
+  @@map("module_definitions")
+}
+
+model GuildModuleAccess {
+  id         String    @id @map("_id")
+  guildId    String
+  moduleId   String
+  unlockedAt DateTime  @default(now())
+  expiresAt  DateTime?
+  grantedBy  String? // userId hoặc admin system
+
+  guild  Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  module ModuleDefinition @relation(fields: [moduleId], references: [id])
+
+  @@unique([guildId, moduleId])
+  @@map("guild_module_access")
+}
+
+model SubscriptionModuleAccess {
+  id                 String    @id @map("_id")
+  userSubscriptionId String
+  moduleId           String
+  unlockedAt         DateTime  @default(now())
+  expiresAt          DateTime?
+  unlockStatus       Int       @default(0) // 0 = ACTIVE, 1 = EXPIRED, 2 = REVOKED
+
+  module ModuleDefinition @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userSubscriptionId, moduleId])
+  @@map("subscription_module_access")
+}
+
+model GuildXpLog {
+  id        String   @id @map("_id")
+  guildId   String
+  memberId  String
+  action    String // message_sent, reaction_added, mission_completed
+  xpGained  Int
+  createdAt DateTime @default(now())
+
+  guild  Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member GuildMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, memberId])
+  @@map("guild_xp_logs")
+}
+
+model GuildLevelReward {
+  id        String   @id @map("_id")
+  guildId   String
+  level     Int
+  rewards   Json // [{ type: "coin", amount: 100 }, { type: "badge", id: "..." }]
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, level])
+  @@map("guild_level_rewards")
+}
+
+model GuildMission {
+  id          String   @id @map("_id")
+  guildId     String
+  name        String
+  description String?
+  criteria    Json // { action: "message_sent", count: 10 }
+  reward      Json // { coin: 50 }
+  repeatable  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  guild           Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  GuildMissionLog GuildMissionLog[]
+
+  @@map("guild_missions")
+}
+
+model GuildMissionLog {
+  id          String       @id @map("_id")
+  missionId   String
+  memberId    String
+  progress    Int
+  completed   Boolean      @default(false)
+  completedAt DateTime?
+  logDate     DateTime?
+  mission     GuildMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  member      GuildMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([missionId, memberId, logDate])
+  @@map("guild_mission_logs")
+}
+
+model GuildBadge {
+  id                String             @id @map("_id")
+  guildId           String
+  name              String
+  iconUrl           String?
+  condition         Json?
+  description       String?
+  createdAt         DateTime           @default(now())
+  isDefaultDuration Boolean            @default(false)
+  defaultDuration   Int?
+  guild             Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  GuildMemberBadge  GuildMemberBadge[]
+
+  @@map("guild_badges")
+}
+
+model GuildMemberBadge {
+  id        String      @id @map("_id")
+  memberId  String
+  badgeId   String
+  grantedAt DateTime    @default(now())
+  duration  Int?
+  badge     GuildBadge  @relation(fields: [badgeId], references: [id])
+  member    GuildMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, badgeId])
+  @@map("guild_member_badges")
+}
+
+model GuildShopItem {
+  id          String   @id @map("_id")
+  guildId     String
+  name        String
+  description String?
+  price       Int
+  currency    String   @default("coin") // hoặc "xp" hoặc "badge"
+  itemType    String // role_color, name_tag, etc
+  itemConfig  Json?
+  createdAt   DateTime @default(now())
+
+  guild                Guild                  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  GuildMemberInventory GuildMemberInventory[]
+
+  @@map("guild_shop_items")
+}
+
+model GuildMemberInventory {
+  id       String @id @map("_id")
+  memberId String
+  itemId   String
+  quantity Int    @default(1)
+
+  member GuildMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  item   GuildShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, itemId])
+  @@map("guild_member_inventories")
+}
+
+model GlobalShopItem {
+  id          String   @id @map("_id")
+  name        String
+  description String?
+  priceXepo   Int
+  itemType    String
+  config      Json
+  createdAt   DateTime @default(now())
+
+  @@map("global_shop_items")
+}
+
+model GuildModuleSetting {
+  id        String   @id @map("_id")
+  guildId   String
+  moduleId  String
+  config    Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  guild  Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  module ModuleDefinition @relation(fields: [moduleId], references: [id])
+
+  @@unique([guildId, moduleId])
+  @@map("guild_module_setting")
+}
+
+model ChannelLastRead {
+  id                String   @id @map("_id")
+  channelId         String
+  userId            String
+  lastReadMessageId String?
+  readAt            DateTime @default(now())
+
+  @@unique([channelId, userId])
+  @@map("channel_last_read")
+}
+
+model Project {
+  id          String  @id @map("_id")
+  name        String
+  description String?
+  communityId String
+  community   Guild   @relation(fields: [communityId], references: [id])
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("project")
+}
+
+model Task {
+  id          String       @id @map("_id")
+  title       String
+  description String?
+  type        TaskType     @default(TASK)
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  startDate   DateTime?
+  dueDate     DateTime?
+  markdown    String?
+  assigneeId  String?
+  assignee    User?        @relation(fields: [assigneeId], references: [id])
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id])
+
+  parentId String?
+  parent   Task?   @relation("Subtasks", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subtasks Task[]  @relation("Subtasks")
+
+  comments TaskComment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("task")
+}
+
+model TaskComment {
+  id        String   @id @map("_id")
+  content   String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("task_comment")
+}
+
+enum TaskType {
+  TASK
+  BUG
+  STORY
+}
+
+enum TaskStatus {
+  TODO
+  DOING
+  DONE
+  BLOCKED
+  TESTING
+  REWORK
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma"
+  previewFeatures = ["views"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DB_MONGO_URI")
+}
+
+// Nitro model: global system-wide Nitro configurations available to all communities
+model Nitro {
+  id          String  @id @map("_id")
+  // Human-friendly name (e.g. "Nitro Classic", "Nitro Boost")
+  name        String
+  // Optional internal SKU/code
+  sku         String? @unique
+  // Short description
+  description String?
+
+  // Price in the main currency (float). For subscription-based nitro this can be the recurring price.
+  price Float @default(0)
+
+  // Duration in days. If null, it's treated as a one-time/permanent product or non-time-based.
+  durationDays Int?
+
+  // Whether this Nitro entry is active (available for purchase/grant)
+  isActive Boolean @default(true)
+
+  // Arbitrary JSON metadata (features, entitlements, limits, external ids, etc.)
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Payments for purchasing this Nitro
+  payments      Payment[]       @relation("NitroPayment")
+  NitroPurchase NitroPurchase[]
+
+  @@map("nitros")
+}
+
+// Model cho hành động boost (user boosts globally)
+model Boost {
+  id String @id @map("_id")
+
+  // Số Nitro (gems) tiêu thụ để upgrade boost (0 = free default)
+  nitroUsed Int @default(0)
+
+  // Level hoặc perks của boost (nâng cấp bằng Nitro)
+  level Int   @default(1) // 1 = default, cao hơn = upgraded
+  perks Json? // E.g., {"extra_emojis": true, "priority": true}
+
+  // Khi boost được kích hoạt
+  boostedAt DateTime  @default(now())
+  // Optional expiry (dài hơn nếu upgrade)
+  expiresAt DateTime?
+
+  //amount
+  amount Float @default(0)
+
+  // Metadata
+  metadata Json?
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  Payment       Payment[]       @relation("BoostPayment")
+  BoostPurchase BoostPurchase[]
+
+  @@map("boosts")
+}
+
+model BoostPurchase {
+  id         String   @id @map("_id")
+  paymentId  String?
+  payment    Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId    String
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  boostId    String
+  boost      Boost    @relation(fields: [boostId], references: [id], onDelete: Cascade)
+  amount     Float
+  status     Int      @default(1) // 0=pending,1=completed,2=failed
+  metadata   Json?
+  purchaseAt DateTime @default(now())
+
+  @@map("boost_purchases")
+}
+
+// Model cho Nitro như currency (gems) sở hữu bởi user
+model UserNitro {
+  id     String @id @map("_id")
+  userId String @unique // Mỗi user có một record
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Tổng số Nitro (gems) user sở hữu
+  balance Int @default(0)
+
+  // Lịch sử mua (optional, hoặc dùng transaction log)
+  metadata Json?
+
+  expiry DateTime? // Optional expiry cho gems (null = không bao giờ hết hạn)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_nitros")
+}
+
+model NitroPurchase {
+  id        String   @id @map("_id")
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nitroId   String
+  nitro     Nitro    @relation(fields: [nitroId], references: [id], onDelete: Cascade)
+  amount    Float
+  status    Int      @default(1) // 0=pending,1=completed,2=failed
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("nitro_purchases")
+}
+
+model Wallet {
+  id      String @id @map("_id")
+  balance Float  @default(0) // Total balance
+
+  // Wallet type: "0,USER" or "1,COMMUNITY"
+  walletType Int @default(0)
+
+  // Wallet owner
+  userId  String? @unique
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId String?
+  guild   Guild?  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // Wallet transactions
+  transactions WalletTransaction[]
+
+  status Int @default(0) // Status of wallet: 0=ACTIVE, 1=DISABLED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id              String  @id @map("_id")
+  transactionType Int // Transaction type: 0=DONATION_RECEIVED, 1=PAYOUT, 2=REFUND, 3=ADJUSTMENT, 4=DEPOSIT, 5=NITRO_PURCHASE, 6=OTHER
+  amount          Float // Transaction amount
+  description     String? // Transaction description
+  metadata        Json? // Additional data
+
+  // Relation to wallet
+  walletId   String
+  wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  newBalance Float?
+  createdAt  DateTime @default(now())
+
+  @@index([walletId, createdAt]) // Index for time-based queries
+  @@map("wallet_transactions")
+}
+
+model Payment {
+  id            String  @id @map("_id")
+  // EPaymentMethod
+  // 0: Wallet, 1: Credit Card, 2: Debit Card, 3: PayPal, 4: Bank Transfer
+  paymentMethod Int     @default(0)
+  transactionId String? // External transaction reference (if any)
+  amount        Float
+  // EPaymentStatus
+  // 0: Pending, 1: Completed, 2: Failed, 3: Refunded
+  status        Int     @default(0)
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  guildId String?
+  guild   Guild?  @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  // Nitro purchase fields
+  nitroId String? // ID của Nitro offering được mua
+  nitro   Nitro?  @relation("NitroPayment", fields: [nitroId], references: [id])
+
+  avatarEffectId String? // ID của Avatar Effect được mua
+  avatarEffect   DecoratorAsset? @relation("DecoratorAssetPayment", fields: [avatarEffectId], references: [id])
+  nitroAmount    Int? // Số gems nhận được từ purchase
+
+  // Boost purchase fields
+  boostId       String? // ID của Boost được mua
+  boost         Boost?          @relation("BoostPayment", fields: [boostId], references: [id])
+  NitroPurchase NitroPurchase[]
+
+  BoostPurchase BoostPurchase[]
+
+  @@map("payments")
+}
+
+enum PresenceStatus {
+  ONLINE
+  OFFLINE
+  IDLE
+  DND
+}
+
+enum MfaType {
+  TOTP
+  WEBAUTHN
+}
+
+enum Platform {
+  WEB
+  IOS
+  ANDROID
+  DESKTOP
+}
+
+type PhoneInfo {
+  e164     String
+  verified Boolean
+}
+
+/// Huy hiệu (badge) người dùng
+type Badge {
+  code      String // Mã badge, ví dụ: EARLY_SUPPORTER, STAFF
+  grantedAt DateTime // Thời điểm nhận
+}
+
+/// Thông tin premium / Nitro
+type Premium {
+  active    Boolean
+  tier      Int? // 1, 2...
+  expiresAt DateTime?
+}
+
+/// Trạng thái hiện diện (presence)
+type Presence {
+  status      PresenceStatus @default(OFFLINE) // online | offline | idle | dnd
+  customText  String? // Custom status text
+  activities  String[] // Danh sách activity đang chạy (game, streaming...)
+  lastUpdated DateTime?
+}
+
+/// Thiết bị đăng nhập
+type Device {
+  platform     Platform // web | ios | android | desktop
+  ip           String?
+  lastActiveAt DateTime?
+  pushToken    String? // token dùng cho push notification
+}
+
+/// Cài đặt quyền riêng tư
+type Privacy {
+  allowDMFrom        Boolean @default(true)
+  allowFriendRequest Boolean @default(true)
+  showActivity       Boolean @default(true)
+  showOnlineStatus   Boolean @default(true)
+}
+
+/// Cài đặt cá nhân (UI, ngôn ngữ, notify…)
+type Settings {
+  theme         String? // light | dark
+  locale        String? // vi-VN | en-US
+  timezone      String?
+  notifications Boolean? // Bật/tắt thông báo chung
+  voice         Json? // Nếu phức tạp (input/output device, volume…)
+  ui            Json? // Layout, accessibility...
+}
+
+/// Cấu hình MFA
+type Mfa {
+  enabled     Boolean
+  type        MfaType? // totp | webauthn
+  backupCodes String[]
+}
+
+model User {
+  id               String  @id @map("_id") // ID duy nhất (Mongo ObjectId dạng string)
+  username         String  @unique // Tên đăng nhập (unique)
+  passwordHash     String // Mật khẩu đã băm (bcrypt)
+  email            String  @unique // Thông tin email { address, verified }
+  phone            String? // Thông tin số điện thoại { e164, verified }, có thể null
+  disabled         Boolean @default(false) // Cờ vô hiệu hóa tài khoản
+  refreshTokenHash String? // Token
+  ownedGuilds      Guild[] // back-relation cho Guild.owner
+
+  globalName      String? // Nickname toàn hệ thống
+  bio             String? // Tiểu sử cá nhân (profile bio)
+  avatar          String? // URL ảnh đại diện
+  banner          String? // URL ảnh banner profile
+  accentColor     String? // Màu profile dạng số (RGB integer)
+  hexAccentColor  String? // Màu profile dạng hex (#RRGGBB)
+  avatarEffectId  String? // Hiệu ứng avatar (nếu có)
+  profileEffectId String?
+  nameplateId     String? // Hiệu ứng profile (nếu có)
+
+  badges   Badge[] // Danh sách huy hiệu (badge) của user
+  premium  Premium? // Thông tin Premium/Nitro (tier, hết hạn…)
+  presence Presence? // Trạng thái hiện diện (online/offline/idle/dnd + activity)
+  devices  Device[] // Danh sách thiết bị đăng nhập (web/mobile/desktop)
+  privacy  Privacy? // Cài đặt quyền riêng tư (friend request, DM…)
+
+  settings Settings? // Cài đặt cá nhân (theme, locale, notify…)
+  mfa      Mfa? // Cấu hình bảo mật 2FA (TOTP/WebAuthn)
+
+  isBot Boolean @default(false)
+
+  isVerify  Boolean   @default(false)
+  deleted   Boolean   @default(false) // Cờ soft-delete
+  deletedAt DateTime? // Thời điểm xóa (nếu có)
+  createdAt DateTime  @default(now()) // Thời điểm tạo user
+  updatedAt DateTime  @updatedAt // Thời điểm cập nhật gần nhất
+
+  // Yêu cầu kết bạn
+  sentRequests     FriendRequest[] @relation("SentRequests")
+  receivedRequests FriendRequest[] @relation("ReceivedRequests")
+
+  // Danh sách bạn bè
+  friendships Friendship[] @relation("UserFriendships")
+  friends     Friendship[] @relation("FriendOfUser")
+
+  GuildMemberBanned        GuildMemberBanned[]
+  GuildMember              GuildMember[]
+  GuildJoinRequest         GuildJoinRequest[]
+  GuildPermissionOverwrite GuildPermissionOverwrite[]
+  GuildMessage             GuildMessage[]
+  PinnedMessage            PinnedMessage[]
+  GuildMessageMention      GuildMessageMention[]
+  GuildEmoji               GuildEmoji[]
+  GuildMessageReactionUser GuildMessageReactionUser[]
+  GuildAnimatedImage       GuildAnimatedImage[]
+  GuildEvent               GuildEvent[]
+  GuildSticker             GuildSticker[]
+  Wallet                   Wallet[]
+  Payment                  Payment[]
+
+  nitro UserNitro?
+
+  GuildChannel        GuildChannel[]
+  DecoratorAsset      DecoratorAsset[]
+  DecoratorCollection DecoratorCollection[]
+  NitroPurchase       NitroPurchase[]
+
+  BoostPurchase BoostPurchase[]
+
+  FeedPost         FeedPost[]
+  FeedLike         FeedLike[]
+  FeedComment      FeedComment[]
+  Project          Project[]
+  Task             Task[]
+  TaskComment      TaskComment[]
+  BotResponse      BotResponse[]
+  BotSkill         BotSkill[]
+  BotCommand       BotCommand[]
+  BotAction        BotAction[]
+  CommandExecution CommandExecution[] @relation("ExecutedBy")
+
+  // Bot Memory & Notification relations
+  botNotifications  BotNotification[] @relation("BotNotifications")
+  userNotifications BotNotification[] @relation("UserNotifications")
+  botReminders      BotReminder[]     @relation("BotReminders")
+  userReminders     BotReminder[]     @relation("UserReminders")
+  botMemories       BotMemory[]       @relation("BotMemories")
+  userMemories      BotMemory[]       @relation("UserMemories")
+  botMemoryLevels   BotMemoryLevel[]  @relation("BotMemoryLevels")
+  userMemoryLevels  BotMemoryLevel[]  @relation("UserMemoryLevels")
+
+  @@index([id, email])
+  @@map("user")
+}
+
+model FriendRequest {
+  id         String              @id @map("_id")
+  senderId   String
+  receiverId String
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  sender   User @relation("SentRequests", fields: [senderId], references: [id])
+  receiver User @relation("ReceivedRequests", fields: [receiverId], references: [id])
+
+  @@map("friend_request")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Friendship {
+  id        String   @id @map("_id")
+  userId    String
+  friendId  String
+  createdAt DateTime @default(now())
+
+  user   User @relation("UserFriendships", fields: [userId], references: [id])
+  friend User @relation("FriendOfUser", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId])
+  @@map("friendship")
+}

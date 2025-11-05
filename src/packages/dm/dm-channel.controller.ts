@@ -22,12 +22,27 @@ export class DmChannelController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Create or get DM channel with users' })
-  @ApiBody({ schema: { example: { userIds: ['userId1', 'userId2'] } } })
+  @ApiBody({
+    schema: {
+      example: {
+        userIds: ['userId1', 'userId2'],
+        icon: 'https://...',
+        groupName: 'My Group',
+      },
+    },
+  })
   async createDmChannel(
     @Body('userIds') userIds: string[],
+    @Body('icon') icon: string,
+    @Body('groupName') groupName: string,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.dmChannelService.createDmChannel(req.user.id, userIds);
+    return this.dmChannelService.createDmChannel(
+      req.user.id,
+      userIds,
+      icon,
+      groupName,
+    );
   }
 
   @Get('')

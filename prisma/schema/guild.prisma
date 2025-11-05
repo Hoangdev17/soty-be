@@ -485,6 +485,7 @@ model GuildChannel {
    */
   recipients String[] @default([])
   maxMembers Int?
+  icon       String?
 
   isPrivate Boolean @default(false)
 
