@@ -171,6 +171,7 @@ model User {
   
   @@index([id, email])
   @@map("user") 
+  
 }
 
 model FriendRequest {

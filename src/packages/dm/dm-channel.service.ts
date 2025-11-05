@@ -15,7 +15,12 @@ export class DmChannelService {
     private readonly ws: WebsocketGateway,
   ) {}
 
-  async createDmChannel(userId: string, userIds: string[]) {
+  async createDmChannel(
+    userId: string,
+    userIds: string[],
+    icon?: string,
+    groupName?: string,
+  ) {
     const isGroupDm = userIds.length > 1;
     const channelType = isGroupDm ? 'GROUP_DM' : 'DM';
 
@@ -124,19 +129,35 @@ export class DmChannelService {
     }
 
     // Create new DM channel
-    const channelName = ChannelType.GROUP_DM;
+    let channelName = groupName;
+
+    // If no groupName provided, use first 2 usernames
+    if (!channelName) {
+      const firstTwoUsers = await this.prismaService.user.findMany({
+        where: {
+          id: {
+            in: userIds.slice(0, 2),
+          },
+        },
+        select: {
+          username: true,
+        },
+      });
+      channelName = firstTwoUsers.map((u) => u.username).join(', ');
+    }
 
     const newChannel = await this.prismaService.guildChannel.create({
       data: {
         id: this.snowflakeID.generate(),
         name: channelName,
-        type: channelType as any,
+        type: channelType,
         recipients: allRecipients,
         createdById: userId,
         guildId: 'dm-system-guild',
         manageable: true,
         viewAble: true,
         deletable: true,
+        icon: icon,
       },
       include: {
         createdBy: {
@@ -161,6 +182,7 @@ export class DmChannelService {
       recipients: newChannel.recipients,
       createdAt: newChannel.createdAt,
       createdBy: newChannel.createdBy,
+      icon: newChannel.icon,
     };
 
     this.ws.emitToRoom(
@@ -225,24 +247,35 @@ export class DmChannelService {
     const formattedChannels = await Promise.all(
       dmChannels.map(async (channel) => {
         let channelName = channel.name;
+
+        // Fetch full recipient details from IDs
+        const recipientUsers = await this.prismaService.user.findMany({
+          where: {
+            id: {
+              in: channel.recipients,
+            },
+          },
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        });
+
         if (channel.type === 'DM') {
           // For 1:1 DM, ensure name is the other user's username
-          const otherUserId = channel.recipients.find((id) => id !== userId);
-          if (otherUserId) {
-            const otherUser = await this.prismaService.user.findUnique({
-              where: { id: otherUserId },
-              select: { username: true },
-            });
-            channelName = otherUser ? otherUser.username : channel.name;
-          }
+          const otherUser = recipientUsers.find((user) => user.id !== userId);
+          channelName = otherUser ? otherUser.username : channel.name;
         }
+
         return {
           id: channel.id,
           type: channel.type,
           name: channelName,
-          recipients: channel.recipients,
+          recipients: recipientUsers,
           createdAt: channel.createdAt,
           createdBy: channel.createdBy,
+          icon: channel.icon,
           lastMessage: channel.messages[0] || null,
         };
       }),
@@ -338,6 +371,7 @@ export class DmChannelService {
       createdAt: channel.createdAt,
       createdBy: channel.createdBy,
       lastMessage: channel.messages[0] || null,
+      icon: channel.icon,
     };
     await this.cacheService.set(cacheKey, formattedChannel, 300);
     return formattedChannel;

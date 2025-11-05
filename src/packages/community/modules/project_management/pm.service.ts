@@ -43,6 +43,15 @@ export class ProjectManagement {
         ownerId: ownerId,
         ...dto,
       },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+          },
+        },
+      },
     });
 
     return project;
