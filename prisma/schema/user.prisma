@@ -44,10 +44,17 @@ type Presence {
 
 /// Thiết bị đăng nhập
 type Device {
-  platform    Platform   // web | ios | android | desktop
-  ip          String?
+  platform     Platform   // web | ios | android | desktop
+  ip           String?
+  browser      String?    // Chrome, Firefox, Safari, Edge, etc.
+  browserVersion String?  // Version của browser
+  os           String?    // Windows, macOS, Linux, Android, iOS
+  osVersion    String?    // Version của OS
+  deviceModel  String?    // Model thiết bị (iPhone 13, Galaxy S21, etc.)
+  deviceVendor String?    // Apple, Samsung, Google, etc.
+  userAgent    String?    // User agent string đầy đủ
   lastActiveAt DateTime?
-  pushToken   String?   // token dùng cho push notification
+  pushToken    String?    // token dùng cho push notification
 }
 
 /// Cài đặt quyền riêng tư

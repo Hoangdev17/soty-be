@@ -258,6 +258,7 @@ export class DmChannelService {
           select: {
             id: true,
             username: true,
+            globalName: true,
             avatar: true,
           },
         });
@@ -340,11 +341,6 @@ export class DmChannelService {
       otherRecipients.map(async (recipientId) => {
         const user = await this.prismaService.user.findUnique({
           where: { id: recipientId },
-          select: {
-            id: true,
-            username: true,
-            avatar: true,
-          },
         });
         return user;
       }),
