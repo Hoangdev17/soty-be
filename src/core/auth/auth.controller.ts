@@ -12,6 +12,8 @@ import {
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from './dto/request-with-auth.dto';
+import type { Request } from 'express';
+import { DeviceUtil } from 'src/utils/device.util';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -20,51 +22,37 @@ export class AuthController {
 
   @Post('register')
   @ApiOperation({ summary: 'Register new user account' })
-  @ApiResponse({
-    status: 201,
-    description: 'User registered successfully',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Username or email already exists',
-  })
-  async register(@Body() dto: CreateUserDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: CreateUserDto, @Req() req: Request) {
+    const deviceInfo = DeviceUtil.extractDeviceInfo(req);
+    return this.authService.register(dto, deviceInfo);
   }
 
   @Post('login')
   @ApiOperation({ summary: 'Login with email and password' })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful, returns user data and tokens',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid email or password',
-  })
-  async login(@Body() dto: LoginDto) {
-    return await this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    const deviceInfo = DeviceUtil.extractDeviceInfo(req);
+    return await this.authService.login(dto, deviceInfo);
   }
 
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token bằng refresh token' })
-  @ApiResponse({
-    status: 200,
-    description: 'Trả về accessToken mới và refreshToken mới',
-  })
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshTokens(dto.refreshToken);
   }
 
   @Get('/me')
   @ApiOperation({ summary: 'Get current logged in user information' })
-  @ApiResponse({
-    status: 200,
-    description: 'User information retrieved successfully',
-  })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   async getUserLogging(@Req() req: AuthenticatedRequest) {
     return this.authService.getUserLogging(req.user.id);
+  }
+
+  @Get('/devices')
+  @ApiOperation({ summary: 'Get device login history' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  async getDeviceHistory(@Req() req: AuthenticatedRequest) {
+    return this.authService.getDeviceHistory(req.user.id);
   }
 }

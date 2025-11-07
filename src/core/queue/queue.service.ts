@@ -1,4 +1,10 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 
 export interface MessageQueuePayload {
@@ -8,13 +14,38 @@ export interface MessageQueuePayload {
 }
 
 @Injectable()
-export class QueueService {
+export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
 
   constructor(
     @Inject('MESSAGE_QUEUE') private readonly messageClient: ClientProxy,
     @Inject('BOT_QUEUE') private readonly botClient: ClientProxy,
   ) {}
+
+  /**
+   * Tự động kết nối với RabbitMQ khi module khởi tạo
+   */
+  async onModuleInit() {
+    try {
+      await this.connect();
+      this.logger.log('QueueService initialized and connected to RabbitMQ');
+    } catch (error) {
+      this.logger.error('Failed to connect to RabbitMQ on init:', error);
+      // Retry connection after 5 seconds
+      setTimeout(() => this.onModuleInit(), 5000);
+    }
+  }
+
+  /**
+   * Tự động ngắt kết nối khi module bị destroy
+   */
+  async onModuleDestroy() {
+    try {
+      await this.disconnect();
+    } catch (error) {
+      this.logger.error('Error disconnecting from RabbitMQ:', error);
+    }
+  }
 
   /**
    * Đẩy message vào queue để xử lý bất đồng bộ

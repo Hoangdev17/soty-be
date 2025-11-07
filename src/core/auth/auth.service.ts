@@ -12,6 +12,7 @@ import { CreateUserDto } from 'src/packages/users/dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
 import { TokenUtil } from 'src/utils/token.util';
 import { LoginDto } from './dto/login.dto';
+import { DeviceUtil, DeviceInfo } from 'src/utils/device.util';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +23,7 @@ export class AuthService {
     private readonly cacheService: CacheService,
   ) {}
 
-  async register(dto: CreateUserDto) {
+  async register(dto: CreateUserDto, deviceInfo?: DeviceInfo) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -31,7 +32,30 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.passwordHash, 10);
 
-    const user = await this.userService.createUser({ ...dto, passwordHash });
+    let user = await this.userService.createUser({ ...dto, passwordHash });
+
+    // Thêm device info vào lịch sử sau khi tạo user
+    if (deviceInfo) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          devices: [
+            {
+              platform: deviceInfo.platform,
+              ip: deviceInfo.ip,
+              browser: deviceInfo.browser,
+              browserVersion: deviceInfo.browserVersion,
+              os: deviceInfo.os,
+              osVersion: deviceInfo.osVersion,
+              deviceModel: deviceInfo.deviceModel,
+              deviceVendor: deviceInfo.deviceVendor,
+              userAgent: deviceInfo.userAgent,
+              lastActiveAt: deviceInfo.lastActiveAt,
+            },
+          ],
+        },
+      });
+    }
 
     const payload = { sub: user.id, username: user.username };
     const { accessToken, refreshToken } =
@@ -43,8 +67,10 @@ export class AuthService {
       data: { refreshTokenHash: hashedRefresh },
     });
 
-    const { passwordHash: _, refreshTokenHash: _token, ...safeUser } = user; // loại bỏ passwordHash
+    const { passwordHash: _, refreshTokenHash: _token, ...safeUser } = user;
 
+    const cacheKey = `user:devices:${safeUser.id}`;
+    await this.cacheService.del(cacheKey);
     await this.cacheService.cacheUser(safeUser);
 
     return {
@@ -54,8 +80,8 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
+  async login(dto: LoginDto, deviceInfo?: DeviceInfo) {
+    let user = await this.prisma.user.findUnique({
       where: { email: dto.email, deleted: false },
     });
 
@@ -71,6 +97,19 @@ export class AuthService {
       throw new BadRequestException('Sai password');
     }
 
+    // Thêm device info mới vào lịch sử (không update, luôn lưu lại)
+    if (deviceInfo) {
+      const updatedDevices = DeviceUtil.addDeviceToHistory(
+        user.devices || [],
+        deviceInfo,
+      );
+
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { devices: updatedDevices },
+      });
+    }
+
     const payload = { sub: user.id, username: user.username };
     const { accessToken, refreshToken } =
       await this.tokenUtil.generateTokens(payload);
@@ -82,6 +121,9 @@ export class AuthService {
     });
 
     const { passwordHash: _, refreshTokenHash: _token, ...safeUser } = user;
+
+    const cacheKey = `user:devices:${safeUser.id}`;
+    await this.cacheService.del(cacheKey);
 
     await this.cacheService.cacheUser(safeUser);
 
@@ -149,11 +191,40 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) return null;
 
-    const { passwordHash: _, refreshTokenHash: _token, ...safe } = user as any;
+    const { passwordHash: _, refreshTokenHash: _token, ...safe } = user;
     try {
       await this.cacheService.cacheUser(safe);
     } catch (e) {}
 
     return safe;
+  }
+
+  async getDeviceHistory(userId: string) {
+    const cacheKey = `user:devices:${userId}`;
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        devices: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User không tồn tại');
+    }
+
+    // Sắp xếp theo thời gian mới nhất trước
+    const sortedDevices = (user.devices || []).sort((a, b) => {
+      const timeA = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+      const timeB = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return {
+      total: sortedDevices.length,
+      devices: sortedDevices,
+    };
   }
 }
