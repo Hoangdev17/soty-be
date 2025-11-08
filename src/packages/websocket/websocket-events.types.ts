@@ -5,6 +5,7 @@ export const WEBSOCKET_EVENTS = {
   // Connection events
   CONNECT: 'connect',
   DISCONNECT: 'disconnect',
+  UNAUTHORIZED: 'unauthorized',
 
   // Room management events
   JOIN_ROOM: 'join_room',
@@ -14,6 +15,7 @@ export const WEBSOCKET_EVENTS = {
 
   // Messaging events
   SEND_MESSAGE: 'send_message',
+  MESSAGE_SENT: 'message_sent',
   MESSAGE: 'message',
 
   // User events
@@ -21,6 +23,8 @@ export const WEBSOCKET_EVENTS = {
   USER_OFFLINE: 'user_offline',
 
   // Community events
+  COMMUNITY_JOINED: 'community_joined',
+  COMMUNITY_LEFT: 'community_left',
   COMMUNITY_UPDATE: 'community_update',
   MEMBER_JOINED: 'member_joined',
   MEMBER_LEFT: 'member_left',
@@ -44,8 +48,22 @@ export const WEBSOCKET_EVENTS = {
   MESSAGES_PINNED: 'messages_pinned',
   MESSAGES_UNPINNED: 'messages_unpinned',
 
-  //frend request event
+  //friend request event
   SEND_FRIEND_REQUEST: 'friend_request',
+
+  // Voice Channel Events
+  JOIN_VOICE_CHANNEL: 'join_voice_channel',
+  LEAVE_VOICE_CHANNEL: 'leave_voice_channel',
+  VOICE_TOKEN_GENERATED: 'voice_token_generated',
+  VOICE_USER_JOINED: 'voice_user_joined',
+  VOICE_USER_LEFT: 'voice_user_left',
+  VOICE_PARTICIPANT_JOINED: 'voice_participant_joined',
+  VOICE_PARTICIPANT_LEFT: 'voice_participant_left',
+  VOICE_CHANNEL_LEFT: 'voice_channel_left',
+  GET_VOICE_PARTICIPANTS: 'get_voice_participants',
+  VOICE_PARTICIPANTS_LIST: 'voice_participants_list',
+  GET_COMMUNITY_VOICE_PARTICIPANTS: 'get_community_voice_participants',
+  COMMUNITY_VOICE_PARTICIPANTS_LIST: 'community_voice_participants_list',
 
   // Notification events
   NOTIFICATION: 'notification',
@@ -329,4 +347,73 @@ export interface WebSocketServerEvents {
   [WEBSOCKET_EVENTS.NOTIFICATION]: (data: NotificationData) => void;
   [WEBSOCKET_EVENTS.ERROR]: (data: ErrorData) => void;
   [WEBSOCKET_EVENTS.ROOM_USERS]: (data: RoomUsersData) => void;
+}
+
+// LiveKit Voice Channel Types
+export interface JoinVoiceChannelPayload {
+  channelId: string;
+  username?: string;
+  metadata?: string;
+}
+
+export interface LeaveVoiceChannelPayload {
+  channelId: string;
+}
+
+export interface GetVoiceParticipantsPayload {
+  channelId: string;
+}
+
+export interface VoiceTokenGeneratedData {
+  token: string;
+  livekitUrl: string;
+  roomName: string;
+  existingParticipants?: VoiceParticipantData[];
+}
+
+export interface VoiceChannelJoinedData {
+  channelId: string;
+  roomName: string;
+  participantId: string;
+  username: string;
+  avatar?: string;
+  avatarEffectId?: string;
+}
+
+export interface VoiceChannelLeftData {
+  channelId: string;
+  roomName: string;
+  participantId: string;
+  username: string;
+  avatar?: string;
+  avatarEffectId?: string;
+}
+
+export interface VoiceParticipantData {
+  participantId: string;
+  username: string;
+  avatar?: string;
+  avatarEffectId?: string;
+  channelId: string;
+  joinedAt?: string;
+  metadata?: string;
+}
+
+export interface VoiceParticipantsListData {
+  channelId: string;
+  roomName: string;
+  participants: VoiceParticipantData[];
+}
+
+export interface CommunityVoiceChannelsData {
+  communityId: string;
+  voiceChannels: Array<{
+    channelId: string;
+    channelName?: string;
+    participants: VoiceParticipantData[];
+  }>;
+}
+
+export interface GetCommunityVoiceParticipantsPayload {
+  communityId: string;
 }

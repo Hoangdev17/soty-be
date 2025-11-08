@@ -39,6 +39,7 @@
     "bcrypt": "^6.0.0",
     "cloudinary": "^1.41.3",
     "ioredis": "^5.3.2",
+    "livekit-server-sdk": "^2.14.0",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
     "nestjs-zod": "^5.0.1",

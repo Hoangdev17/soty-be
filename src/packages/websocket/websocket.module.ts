@@ -9,6 +9,7 @@ import { ChannelsModule } from '../community/modules/channels/channels.module';
 import { UsersModule } from '../users/users.module';
 import { CommunityModule } from '../community/community.module';
 import { CommunityService } from '../community/community.service';
+import { LiveKitModule } from '../livekit/livekit.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CommunityService } from '../community/community.service';
     forwardRef(() => MembersModule),
     forwardRef(() => ChannelsModule),
     forwardRef(() => UsersModule),
+    LiveKitModule,
   ],
   providers: [WebsocketGateway, PrismaService, SnowflakeID, CommunityService],
   exports: [WebsocketGateway],

@@ -12,6 +12,7 @@ import { ThreadsModule } from './modules/threads/threads.module';
 import { EventsModule } from './modules/events/events.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { MessageModule } from '../message/message.module';
+import { LiveKitModule } from '../livekit/livekit.module';
 import { ChannelsService } from './modules/channels/channels.service';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { MessageService } from '../message/message.service';
@@ -27,6 +28,7 @@ import { ProjectManagement } from './modules/project_management/pm.service';
     MembersModule,
     ThreadsModule,
     EventsModule,
+    LiveKitModule,
     forwardRef(() => MessageModule), // Import MessageModule để có MessageFilterService
   ],
 

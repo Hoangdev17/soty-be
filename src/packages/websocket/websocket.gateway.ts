@@ -16,6 +16,7 @@ import { CacheService } from '../../core/cache/cache.service';
 import { MessageService } from '../message/message.service';
 import { MembersService } from '../community/modules/members/members.service';
 import { ChannelsService } from '../community/modules/channels/channels.service';
+import { LiveKitService } from '../livekit/livekit.service';
 import { WEBSOCKET_EVENTS } from './websocket-events.types';
 import type {
   JoinRoomPayload,
@@ -35,6 +36,16 @@ import type {
   ToggleVideoPayload,
   GetRoomUsersPayload,
   RoomUsersData,
+  JoinVoiceChannelPayload,
+  LeaveVoiceChannelPayload,
+  GetVoiceParticipantsPayload,
+  VoiceTokenGeneratedData,
+  VoiceChannelJoinedData,
+  VoiceChannelLeftData,
+  VoiceParticipantData,
+  VoiceParticipantsListData,
+  GetCommunityVoiceParticipantsPayload,
+  CommunityVoiceChannelsData,
 } from './websocket-events.types';
 import { UsersService } from '../users/users.service';
 import { PresenceStatus } from '@prisma/client';
@@ -72,6 +83,7 @@ export class WebsocketGateway
     @Inject(forwardRef(() => UsersService))
     private readonly userService: UsersService,
     private readonly communityService: CommunityService,
+    private readonly livekitService: LiveKitService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -863,5 +875,468 @@ export class WebsocketGateway
 
   broadcastToCommunity(communityId: string, event: string, data: any) {
     this.emitToRoom(`community_${communityId}`, event, data);
+  }
+
+  // ============= LiveKit Voice Channel Handlers =============
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.JOIN_VOICE_CHANNEL)
+  async handleJoinVoiceChannel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: JoinVoiceChannelPayload,
+  ): Promise<WebSocketResponse<VoiceTokenGeneratedData>> {
+    if (!client.user) {
+      const errorResponse = {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+
+      // Emit error to client
+      client.emit(WEBSOCKET_EVENTS.VOICE_TOKEN_GENERATED, errorResponse);
+
+      return errorResponse;
+    }
+
+    try {
+      // Create room name from channel ID
+      const roomName = `voice_${data.channelId}`;
+
+      // Get user info for display name
+      const user = await this.userService.findById(client.user.sub);
+      const username = data.username || user?.username || client.user.sub;
+
+      // Create room if it doesn't exist
+      await this.livekitService.createRoom(roomName, 50, 300);
+
+      // Generate access token for user
+      const token = await this.livekitService.generateAccessToken(
+        roomName,
+        client.user.sub,
+        username,
+        data.metadata,
+      );
+
+      const livekitUrl = this.configService.get<string>('LIVEKIT_URL')!;
+
+      // Join the voice channel room for WebSocket events
+      client.join(`voice_${data.channelId}`);
+
+      this.logger.log(
+        `User ${client.user.sub} joined voice channel ${data.channelId}`,
+      );
+
+      // Get current participants from LiveKit room
+      const currentParticipants =
+        await this.livekitService.listParticipants(roomName);
+
+      // Get existing participants in WebSocket room (those connected via our app)
+      const room = this.server.sockets.adapter.rooms.get(
+        `voice_${data.channelId}`,
+      );
+      const existingParticipants: VoiceParticipantData[] = [];
+
+      if (room) {
+        for (const socketId of room) {
+          const socket = this.server.sockets.sockets.get(socketId);
+          if (socket && socket.user && socket.user.sub !== client.user.sub) {
+            const existingUser = await this.userService.findById(
+              socket.user.sub,
+            );
+            if (existingUser) {
+              existingParticipants.push({
+                participantId: socket.user.sub,
+                username: existingUser.username,
+                avatar: existingUser.avatar,
+                avatarEffectId: existingUser.avatarEffectId,
+                channelId: data.channelId,
+                joinedAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+
+      // Prepare response data with existing participants
+      const responseData: VoiceTokenGeneratedData & {
+        existingParticipants?: VoiceParticipantData[];
+      } = {
+        token,
+        livekitUrl,
+        roomName,
+        existingParticipants,
+      };
+
+      // Emit directly to the requesting client
+      client.emit(WEBSOCKET_EVENTS.VOICE_TOKEN_GENERATED, responseData);
+
+      this.logger.log(
+        `Emitted ${WEBSOCKET_EVENTS.VOICE_TOKEN_GENERATED} to client ${client.id} with ${existingParticipants.length} existing participants`,
+      );
+
+      // Notify others in the channel
+      const joinedData: VoiceChannelJoinedData = {
+        channelId: data.channelId,
+        roomName,
+        participantId: client.user.sub,
+        username,
+        avatar: user?.avatar,
+        avatarEffectId: (user as any)?.avatarEffectId,
+      };
+
+      // Emit to requesting client as well
+      client.emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANT_JOINED, joinedData);
+
+      // Emit to others in the voice channel
+      client
+        .to(`voice_${data.channelId}`)
+        .emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANT_JOINED, joinedData);
+
+      this.logger.log(
+        `Notified others of user ${client.user.sub} joining voice channel ${data.channelId}`,
+      );
+
+      // Get community ID and broadcast to community members
+      const channel = await this.prismaService.guildChannel.findUnique({
+        where: { id: data.channelId },
+        select: { guildId: true },
+      });
+
+      if (channel?.guildId) {
+        // Broadcast to all community members
+        this.broadcastToCommunity(
+          channel.guildId,
+          WEBSOCKET_EVENTS.VOICE_PARTICIPANT_JOINED,
+          joinedData,
+        );
+
+        this.logger.log(
+          `Broadcasted voice join to community ${channel.guildId}`,
+        );
+      }
+
+      // Also return for acknowledgment callback
+      return {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error joining voice channel: ${error.message}`);
+
+      const errorResponse = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to join voice channel',
+        },
+        timestamp: new Date(),
+      };
+
+      // Emit error to client
+      client.emit(WEBSOCKET_EVENTS.VOICE_TOKEN_GENERATED, errorResponse);
+
+      return errorResponse;
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.LEAVE_VOICE_CHANNEL)
+  async handleLeaveVoiceChannel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: LeaveVoiceChannelPayload,
+  ): Promise<WebSocketResponse<VoiceChannelLeftData>> {
+    if (!client.user) {
+      const errorResponse = {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+
+      // Emit error to client
+      client.emit(WEBSOCKET_EVENTS.VOICE_CHANNEL_LEFT, errorResponse);
+
+      return errorResponse;
+    }
+
+    try {
+      // Leave the voice channel room
+      client.leave(`voice_${data.channelId}`);
+
+      // Get user info for display name
+      const user = await this.userService.findById(client.user.sub);
+      const username = user?.username || client.user.sub;
+
+      this.logger.log(
+        `User ${client.user.sub} left voice channel ${data.channelId}`,
+      );
+
+      // Prepare response data
+      const responseData: VoiceChannelLeftData = {
+        channelId: data.channelId,
+        roomName: `voice_${data.channelId}`,
+        participantId: client.user.sub,
+        username,
+        avatar: user?.avatar,
+        avatarEffectId: (user as any)?.avatarEffectId,
+      };
+
+      // Emit directly to the requesting client
+      client.emit(WEBSOCKET_EVENTS.VOICE_CHANNEL_LEFT, {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      });
+
+      // Emit to requesting client as well
+      client.emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANT_LEFT, responseData);
+
+      // Notify others in the channel
+      client
+        .to(`voice_${data.channelId}`)
+        .emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANT_LEFT, responseData);
+
+      this.logger.log(
+        `Notified others of user ${client.user.sub} leaving voice channel ${data.channelId}`,
+      );
+
+      // Get community ID and broadcast to community members
+      const channel = await this.prismaService.guildChannel.findUnique({
+        where: { id: data.channelId },
+        select: { guildId: true },
+      });
+
+      if (channel?.guildId) {
+        // Broadcast to all community members
+        this.broadcastToCommunity(
+          channel.guildId,
+          WEBSOCKET_EVENTS.VOICE_PARTICIPANT_LEFT,
+          responseData,
+        );
+
+        this.logger.log(
+          `Broadcasted voice leave to community ${channel.guildId}`,
+        );
+      }
+
+      return {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error leaving voice channel: ${error.message}`);
+
+      const errorResponse = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to leave voice channel',
+        },
+        timestamp: new Date(),
+      };
+
+      // Emit error to client
+      client.emit(WEBSOCKET_EVENTS.VOICE_CHANNEL_LEFT, errorResponse);
+
+      return errorResponse;
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.GET_VOICE_PARTICIPANTS)
+  async handleGetVoiceParticipants(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: GetVoiceParticipantsPayload,
+  ): Promise<WebSocketResponse<VoiceParticipantsListData>> {
+    if (!client.user) {
+      const errorResponse = {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+
+      client.emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANTS_LIST, errorResponse);
+      return errorResponse;
+    }
+
+    try {
+      const roomName = `voice_${data.channelId}`;
+
+      // Get participants from WebSocket room
+      const room = this.server.sockets.adapter.rooms.get(
+        `voice_${data.channelId}`,
+      );
+      const participants: VoiceParticipantData[] = [];
+
+      if (room) {
+        for (const socketId of room) {
+          const socket = this.server.sockets.sockets.get(socketId);
+          if (socket && socket.user) {
+            const user = await this.userService.findById(socket.user.sub);
+            if (user) {
+              participants.push({
+                participantId: socket.user.sub,
+                username: user.username,
+                channelId: data.channelId,
+                joinedAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+
+      const responseData: VoiceParticipantsListData = {
+        channelId: data.channelId,
+        roomName,
+        participants,
+      };
+
+      // Emit directly to the requesting client
+      client.emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANTS_LIST, {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      });
+
+      this.logger.log(
+        `Sent voice participants list for channel ${data.channelId} to user ${client.user.sub}: ${participants.length} participants`,
+      );
+
+      return {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Error getting voice participants: ${error.message}`);
+
+      const errorResponse = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to get voice participants',
+        },
+        timestamp: new Date(),
+      };
+
+      client.emit(WEBSOCKET_EVENTS.VOICE_PARTICIPANTS_LIST, errorResponse);
+      return errorResponse;
+    }
+  }
+
+  @SubscribeMessage(WEBSOCKET_EVENTS.GET_COMMUNITY_VOICE_PARTICIPANTS)
+  async handleGetCommunityVoiceParticipants(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: GetCommunityVoiceParticipantsPayload,
+  ): Promise<WebSocketResponse<CommunityVoiceChannelsData>> {
+    if (!client.user) {
+      const errorResponse = {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+        timestamp: new Date(),
+      };
+
+      client.emit(
+        WEBSOCKET_EVENTS.COMMUNITY_VOICE_PARTICIPANTS_LIST,
+        errorResponse,
+      );
+      return errorResponse;
+    }
+
+    try {
+      // Get all voice channels in the community
+      const channels = await this.prismaService.guildChannel.findMany({
+        where: {
+          guildId: data.communityId,
+          type: 'GUILD_VOICE',
+          deleted: false,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      const voiceChannels: Array<{
+        channelId: string;
+        channelName?: string;
+        participants: VoiceParticipantData[];
+      }> = [];
+
+      // For each voice channel, get participants from WebSocket rooms
+      for (const channel of channels) {
+        const room = this.server.sockets.adapter.rooms.get(
+          `voice_${channel.id}`,
+        );
+        const participants: VoiceParticipantData[] = [];
+
+        if (room && room.size > 0) {
+          for (const socketId of room) {
+            const socket = this.server.sockets.sockets.get(socketId);
+            if (socket && socket.user) {
+              const user = await this.userService.findById(socket.user.sub);
+              if (user) {
+                participants.push({
+                  participantId: socket.user.sub,
+                  username: user.username,
+                  avatar: user.avatar,
+                  avatarEffectId: (user as any).avatarEffectId,
+                  channelId: channel.id,
+                  joinedAt: new Date().toISOString(),
+                });
+              }
+            }
+          }
+
+          // Only include channels that have participants
+          if (participants.length > 0) {
+            voiceChannels.push({
+              channelId: channel.id,
+              channelName: channel.name,
+              participants,
+            });
+          }
+        }
+      }
+
+      const responseData: CommunityVoiceChannelsData = {
+        communityId: data.communityId,
+        voiceChannels,
+      };
+
+      // Emit directly to the requesting client
+      client.emit(WEBSOCKET_EVENTS.COMMUNITY_VOICE_PARTICIPANTS_LIST, {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      });
+
+      this.logger.log(
+        `Sent community voice participants list for community ${data.communityId} to user ${client.user.sub}: ${voiceChannels.length} active voice channels`,
+      );
+
+      return {
+        success: true,
+        data: responseData,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error getting community voice participants: ${error.message}`,
+      );
+
+      const errorResponse = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to get community voice participants',
+        },
+        timestamp: new Date(),
+      };
+
+      client.emit(
+        WEBSOCKET_EVENTS.COMMUNITY_VOICE_PARTICIPANTS_LIST,
+        errorResponse,
+      );
+      return errorResponse;
+    }
   }
 }
