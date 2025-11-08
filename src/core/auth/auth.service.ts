@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SnowflakeID } from 'src/utils/snowflake';
@@ -22,6 +23,8 @@ export class AuthService {
     private readonly tokenUtil: TokenUtil,
     private readonly cacheService: CacheService,
   ) {}
+
+  private readonly logger = new Logger(AuthService.name);
 
   async register(dto: CreateUserDto, deviceInfo?: DeviceInfo) {
     const existingUser = await this.prisma.user.findUnique({
@@ -72,6 +75,8 @@ export class AuthService {
     const cacheKey = `user:devices:${safeUser.id}`;
     await this.cacheService.del(cacheKey);
     await this.cacheService.cacheUser(safeUser);
+
+    this.logger.log(`New user registered: ${safeUser.id} (${safeUser.email})`);
 
     return {
       user: safeUser,
@@ -127,6 +132,8 @@ export class AuthService {
 
     await this.cacheService.cacheUser(safeUser);
 
+    this.logger.log(`User logged in: ${safeUser.id} (${safeUser.email})`);
+
     return {
       user: safeUser,
       accessToken,
@@ -175,6 +182,8 @@ export class AuthService {
         data: { refreshTokenHash: hashedRefresh },
       });
 
+      this.logger.log(`Refreshed tokens for user: ${user.id} (${user.email})`);
+
       // 6. Trả về client
       return {
         accessToken,
@@ -194,7 +203,9 @@ export class AuthService {
     const { passwordHash: _, refreshTokenHash: _token, ...safe } = user;
     try {
       await this.cacheService.cacheUser(safe);
-    } catch (e) {}
+    } catch (e) {
+      this.logger.error(`Failed to cache user: ${user.id} (${user.email})`, e);
+    }
 
     return safe;
   }
