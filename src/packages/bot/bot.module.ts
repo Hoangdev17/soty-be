@@ -10,6 +10,7 @@ import { BotMemoryHandler } from './handlers/bot-memory.handler';
 import { BotAIChatHandler } from './handlers/bot-ai-chat.handler';
 import { MessageFilterHandler } from './handlers/message-filter.handler';
 import { MessageFilterSkillHandler } from './handlers/message-filter-skill.handler';
+import { SpellingCorrectionHandler } from './handlers/spelling-correction.handler';
 import { BotReminderScheduler } from './cron/bot-reminder-scheduler.service';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { MessageModule } from '../message/message.module';
@@ -31,6 +32,7 @@ import { MessageModule } from '../message/message.module';
     BotAIChatHandler,
     MessageFilterHandler,
     MessageFilterSkillHandler,
+    SpellingCorrectionHandler,
     BotReminderScheduler,
   ],
   exports: [

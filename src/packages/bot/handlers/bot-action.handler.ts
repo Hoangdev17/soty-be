@@ -7,6 +7,7 @@ import { WEBSOCKET_EVENTS } from '../../websocket/websocket-events.types';
 import { BotMemoryHandler } from './bot-memory.handler';
 import { BotAIChatHandler } from './bot-ai-chat.handler';
 import { MessageFilterSkillHandler } from './message-filter-skill.handler';
+import { SpellingCorrectionHandler } from './spelling-correction.handler';
 
 export interface BotActionContext {
   botId: string;
@@ -48,6 +49,7 @@ export class BotActionHandler {
     private memoryHandler: BotMemoryHandler,
     private aiChat: BotAIChatHandler,
     private messageFilterSkill: MessageFilterSkillHandler,
+    private spellingCorrection: SpellingCorrectionHandler,
   ) {
     this.handlers = new Map();
     this.registerHandlers();
@@ -126,6 +128,12 @@ export class BotActionHandler {
     );
     this.handlers.set('checkSpamHandler', this.checkSpamHandler.bind(this));
     this.handlers.set('checkToxicHandler', this.checkToxicHandler.bind(this));
+
+    // Spelling Correction handler
+    this.handlers.set(
+      'spellingCorrectionHandler',
+      this.spellingCorrectionHandler.bind(this),
+    );
   }
 
   /**
@@ -1268,6 +1276,25 @@ export class BotActionHandler {
       return {
         success: false,
         error: `Lỗi khi kiểm tra nội dung độc hại: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Handler: Spelling Correction - Kiểm tra và sửa lỗi chính tả
+   * Usage: !spell <text> hoặc !correct <text>
+   */
+  private async spellingCorrectionHandler(
+    context: BotActionContext,
+  ): Promise<BotActionResult> {
+    try {
+      const result = await this.spellingCorrection.checkAndCorrect(context);
+      return result;
+    } catch (error) {
+      this.logger.error('Error in spellingCorrectionHandler:', error);
+      return {
+        success: false,
+        error: `Lỗi khi kiểm tra chính tả: ${error.message}`,
       };
     }
   }
