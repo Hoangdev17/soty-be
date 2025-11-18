@@ -449,7 +449,7 @@ export class BotMessageProcessor {
     const { prediction } = filterResult;
 
     const warnings = {
-      spam: '⚠️ Tin nhắn của bạn được phát hiện là spam và đã bị xóa. Vui lòng tránh gửi tin nhắn lặp lại hoặc không có ý nghĩa.',
+      spam: '⚠️ Tin nhắn của bạn được phát hiện là spam và đã bị xóa.',
       toxic:
         '⚠️ Tin nhắn của bạn chứa nội dung không phù hợp và đã bị xóa. Vui lòng giữ thái độ tôn trọng trong giao tiếp.',
     };
